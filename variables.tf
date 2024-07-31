@@ -1,19 +1,17 @@
 variable "name" {
   type        = string
-  description = "The name of the this resource."
+  description = "(Required) The name of the this resource."
 
-  validation {
-    condition     = can(regex("TODO", var.name))
-    error_message = "The name must be TODO." # TODO remove the example below once complete:
-    #condition     = can(regex("^[a-z0-9]{5,50}$", var.name))
-    #error_message = "The name must be between 5 and 50 characters long and can only contain lowercase letters and numbers."
-  }
+  # validation {
+  #   condition     = can(regex("^(?!-)(?!.*--)[a-z0-9-]{2,60}(?<!-)$", var.name))
+  #   error_message = "The name must only contain lowercase letters, digits or dashes, cannot use dash as the first two or last one characters, cannot contain consecutive dashes, and is limited between 2 and 60 characters in length" # TODO remove the example below once complete:
+  # }
 }
 
 # This is required for most resource modules
 variable "resource_group_name" {
   type        = string
-  description = "The resource group where the resources will be deployed."
+  description = "(Required) The resource group where the resources will be deployed."
 }
 
 # required AVM interfaces
@@ -97,7 +95,7 @@ DESCRIPTION
 variable "location" {
   type        = string
   nullable    = false
-  description = "Azure region where the resource should be deployed."
+  description = "(Required) Azure region where the resource should be deployed."
 }
 
 variable "lock" {
@@ -231,4 +229,78 @@ variable "tags" {
   type        = map(string)
   default     = null
   description = "(Optional) Tags of the resource."
+}
+
+variable "local_authentication_enabled" {
+  type        = bool
+  default     = null
+  description = "(Optional) Specifies whether the Search Service allows authenticating using API Keys? Defaults to `true`."
+}
+
+variable "public_network_access_enabled" {  
+  type        = bool
+  default     = true
+  description = "This variable controls whether or not public network access is enabled for the module."
+  
+}
+
+variable "allowed_ips" {
+  type        = list(string)
+  description = "One or more IP Addresses, or CIDR Blocks which should be able to access the AI Search service"
+  default     = null
+}
+
+variable "sku" {
+  description = "(Required) The pricing tier of the search service you want to create (for example, basic or standard)."
+  default     = "standard"
+  type        = string
+  validation {
+    condition     = contains(["free", "basic", "standard", "standard2", "standard3", "storage_optimized_l1", "storage_optimized_l2"], var.sku)
+    error_message = "The sku must be one of the following values: free, basic, standard, standard2, standard3, storage_optimized_l1, storage_optimized_l2."
+  }
+}
+
+
+variable "authentication_failure_mode" {
+  type        = string
+  default     = null
+  description = "(Optional) Specifies the response that the Search Service should return for requests that fail authentication. Possible values include `http401WithBearerChallenge` or `http403`."
+}
+
+variable "customer_managed_key_enforcement_enabled" {
+  type        = bool
+  default     = null
+  description = "(Optional) Specifies whether the Search Service should enforce that non-customer resources are encrypted. Defaults to `false`."
+}
+
+variable "hosting_mode" {
+  type        = string
+  default     = null
+  description = "(Optional) Specifies the Hosting Mode, which allows for High Density partitions (that allow for up to 1000 indexes) should be supported. Possible values are `highDensity` or `default`. Defaults to `default`. Changing this forces a new Search Service to be created."
+}
+
+variable "replica_count" {
+  type        = number
+  description = "Replicas distribute search workloads across the service. You need at least two replicas to support high availability of query workloads (not applicable to the free tier)."
+  default     = 1
+  validation {
+    condition     = var.replica_count >= 1 && var.replica_count <= 12
+    error_message = "The replica_count must be between 1 and 12."
+  }
+}
+
+variable "partition_count" {
+  type        = number
+  description = "Partitions allow for scaling of document count as well as faster indexing by sharding your index over multiple search units."
+  default     = 1
+  validation {
+    condition     = contains([1, 2, 3, 4, 6, 12], var.partition_count)
+    error_message = "The partition_count must be one of the following values: 1, 2, 3, 4, 6, 12."
+  }
+}
+
+variable "semantic_search_sku" {
+  type        = string
+  default     = null
+  description = "(Optional) Specifies the Semantic Search SKU which should be used for this Search Service. Possible values include `free` and `standard`."
 }
