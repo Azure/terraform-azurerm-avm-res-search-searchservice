@@ -20,11 +20,11 @@ variable "local_authentication_enabled" {
   description = "This variable controls whether or not local authentication is enabled for the module."
 }
 
-variable "public_network_access_enabled" {  
+variable "public_network_access_enabled" {
   type        = bool
   default     = false
   description = "This variable controls whether or not public network access is enabled for the module."
-  
+
 }
 
 variable "azure_ai_allowed_ips" {

@@ -52,7 +52,7 @@ module "search_service" {
   location            = var.location
   name                = "bnetiaisdemo"
   resource_group_name = azurerm_resource_group.this.name
-  sku = "standard"
+  sku                 = "standard"
 
   managed_identities = {
     system_assigned = true
