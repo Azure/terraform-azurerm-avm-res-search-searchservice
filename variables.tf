@@ -237,11 +237,11 @@ variable "local_authentication_enabled" {
   description = "(Optional) Specifies whether the Search Service allows authenticating using API Keys? Defaults to `true`."
 }
 
-variable "public_network_access_enabled" {  
+variable "public_network_access_enabled" {
   type        = bool
   default     = true
   description = "This variable controls whether or not public network access is enabled for the module."
-  
+
 }
 
 variable "allowed_ips" {

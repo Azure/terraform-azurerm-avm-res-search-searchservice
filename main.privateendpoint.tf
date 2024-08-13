@@ -11,10 +11,10 @@ resource "azurerm_resource_group" "this" {
 }
 
 locals {
-  
+
   core_services_vnet_subnets = cidrsubnets("10.0.0.0/22", 6, 2, 4, 3)
 
-  name                                  = module.naming.search_service.name_unique
+  name                 = module.naming.search_service.name_unique
   subnet_address_space = [local.core_services_vnet_subnets[3]]
 }
 
@@ -28,10 +28,10 @@ resource "azurerm_virtual_network" "this" {
 
 #Subnet for private endpoint
 resource "azurerm_subnet" "this" {
-  address_prefixes     = local.subnet_address_space
-  name                 = "aisearch-subnet"
-  resource_group_name  = azurerm_resource_group.this.name
-  virtual_network_name = azurerm_virtual_network.this.name
+  address_prefixes                  = local.subnet_address_space
+  name                              = "aisearch-subnet"
+  resource_group_name               = azurerm_resource_group.this.name
+  virtual_network_name              = azurerm_virtual_network.this.name
   private_endpoint_network_policies = "Enabled"
 }
 
@@ -54,14 +54,14 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
 # Create private Endpoint
 resource "azurerm_private_endpoint" "this" {
 
-  location                      = azurerm_resource_group.this.location
-  name                          = "pe-${var.name}"
-  resource_group_name           = azurerm_resource_group.this.name
-  subnet_id                     = azurerm_subnet.this.id
+  location            = azurerm_resource_group.this.location
+  name                = "pe-${var.name}"
+  resource_group_name = azurerm_resource_group.this.name
+  subnet_id           = azurerm_subnet.this.id
 
 
   private_service_connection {
-    name                           = "psc-${var.name}" 
+    name                           = "psc-${var.name}"
     is_manual_connection           = false
     private_connection_resource_id = azurerm_search_service.this.id # TODO: Replace this dummy resource azurerm_resource_group.TODO with your module resource
     subresource_names              = ["searchService"]
