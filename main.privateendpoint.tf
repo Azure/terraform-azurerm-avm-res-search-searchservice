@@ -50,6 +50,7 @@ resource "azurerm_private_endpoint" "this" {
   name                = "pe-${var.name}"
   resource_group_name = var.resource_group_name
   subnet_id           = azurerm_subnet.this.id
+  tags                = var.tags
 
 
   private_service_connection {
