@@ -13,6 +13,7 @@ resource "azurerm_virtual_network" "this" {
   location            = var.location
   name                = "aisearch-vnet-${var.name}"
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 #Subnet for private endpoint
@@ -29,6 +30,7 @@ resource "azurerm_subnet" "this" {
 resource "azurerm_private_dns_zone" "this" {
   name                = "privatelink.search.windows.net"
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 # Create Private DNS Zone Virtual Network Link
@@ -37,6 +39,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   private_dns_zone_name = azurerm_private_dns_zone.this.name
   resource_group_name   = var.resource_group_name
   virtual_network_id    = azurerm_virtual_network.this.id
+  tags                  = var.tags 
 }
 
 
@@ -63,4 +66,5 @@ resource "azurerm_private_dns_a_record" "this" {
   resource_group_name = azurerm_private_dns_zone.this.resource_group_name
   ttl                 = 300
   records             = [azurerm_private_endpoint.this.private_service_connection[0].private_ip_address]
+  tags                = var.tags
 }
