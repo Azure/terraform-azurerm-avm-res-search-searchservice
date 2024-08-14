@@ -1,5 +1,5 @@
 # This is required for resource modules
-data "azurerm_resource_group" "parent" {
+data "azurerm_resource_group" "this" {
   count = var.location == null ? 1 : 0
 
   name = var.resource_group_name
