@@ -1,20 +1,15 @@
-# This ensures we have unique CAF compliant names for our resources.
-module "naming" {
-  source  = "Azure/naming/azurerm"
-  version = "~> 0.3"
-}
-
 # This is required for resource modules
-resource "azurerm_resource_group" "this" {
-  location = var.location
-  name     = module.naming.resource_group.name_unique
+data "azurerm_resource_group" "parent" {
+  count = var.location == null ? 1 : 0
+
+  name = var.resource_group_name
 }
 
 locals {
 
   core_services_vnet_subnets = cidrsubnets("10.0.0.0/22", 6, 2, 4, 3)
 
-  name                 = module.naming.search_service.name_unique
+  name                 = var.name
   subnet_address_space = [local.core_services_vnet_subnets[3]]
 }
 
@@ -22,7 +17,7 @@ locals {
 resource "azurerm_virtual_network" "this" {
   address_space       = ["10.0.0.0/22"]
   location            = azurerm_resource_group.this.location
-  name                = module.naming.virtual_network.name_unique
+  name                = "aisearch-vnet=-${var.name}"
   resource_group_name = azurerm_resource_group.this.name
 }
 
