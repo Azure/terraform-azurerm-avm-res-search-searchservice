@@ -1,9 +1,3 @@
-# This is required for resource modules
-data "azurerm_resource_group" "this" {
-  count = var.location == null ? 1 : 0
-
-  name = var.resource_group_name
-}
 
 locals {
 
@@ -16,16 +10,16 @@ locals {
 #VNET for private endpoint 
 resource "azurerm_virtual_network" "this" {
   address_space       = ["10.0.0.0/22"]
-  location            = azurerm_resource_group.this.location
+  location            = var.location
   name                = "aisearch-vnet=-${var.name}"
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = var.resource_group_name
 }
 
 #Subnet for private endpoint
 resource "azurerm_subnet" "this" {
   address_prefixes                  = local.subnet_address_space
   name                              = "aisearch-subnet"
-  resource_group_name               = azurerm_resource_group.this.name
+  resource_group_name               = var.resource_group_name
   virtual_network_name              = azurerm_virtual_network.this.name
   private_endpoint_network_policies = "Enabled"
 }
@@ -34,14 +28,14 @@ resource "azurerm_subnet" "this" {
 # Create Private DNS Zone for Search Service
 resource "azurerm_private_dns_zone" "this" {
   name                = "privatelink.search.windows.net"
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = var.resource_group_name
 }
 
 # Create Private DNS Zone Virtual Network Link
 resource "azurerm_private_dns_zone_virtual_network_link" "this" {
   name                  = "${azurerm_virtual_network.this.name}-link"
   private_dns_zone_name = azurerm_private_dns_zone.this.name
-  resource_group_name   = azurerm_resource_group.this.name
+  resource_group_name   = var.resource_group_name
   virtual_network_id    = azurerm_virtual_network.this.id
 }
 
@@ -49,9 +43,9 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
 # Create private Endpoint
 resource "azurerm_private_endpoint" "this" {
 
-  location            = azurerm_resource_group.this.location
+  location            = var.location
   name                = "pe-${var.name}"
-  resource_group_name = azurerm_resource_group.this.name
+  resource_group_name = var.resource_group_name
   subnet_id           = azurerm_subnet.this.id
 
 
