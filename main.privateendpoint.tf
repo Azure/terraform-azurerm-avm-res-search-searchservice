@@ -3,7 +3,7 @@ locals {
 
   core_services_vnet_subnets = cidrsubnets("10.0.0.0/22", 6, 2, 4, 3)
 
-  name                 = var.name
+  # name                 = var.name
   subnet_address_space = [local.core_services_vnet_subnets[3]]
 }
 
@@ -11,7 +11,7 @@ locals {
 resource "azurerm_virtual_network" "this" {
   address_space       = ["10.0.0.0/22"]
   location            = var.location
-  name                = "aisearch-vnet=-${var.name}"
+  name                = "aisearch-vnet-${var.name}"
   resource_group_name = var.resource_group_name
 }
 
