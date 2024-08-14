@@ -9,3 +9,8 @@ output "resource" {
   description = "This is the full output for the resource."
   value       = azurerm_search_service.this
 }
+
+output "resource_id" {
+  description = "The ID of the machine learning workspace."
+  value       = azurerm_search_service.this.id
+}
