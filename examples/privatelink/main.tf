@@ -49,13 +49,20 @@ module "search_service" {
   source = "../../"
   # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
   # ...
-  location            = var.location
-  name                = "bnetiaisdemo"
-  resource_group_name = azurerm_resource_group.this.name
-  sku                 = "standard"
+  location                      = var.location
+  name                          = "bnetiaisdemoprivatenet"
+  resource_group_name           = azurerm_resource_group.this.name
+  sku                           = "standard"
+  public_network_access_enabled = var.public_network_access_enabled
+  allowed_ips                   = var.azure_ai_allowed_ips
 
+  local_authentication_enabled = var.local_authentication_enabled
   managed_identities = {
     system_assigned = true
   }
   enable_telemetry = var.enable_telemetry # see variables.tf
 }
+
+
+
+

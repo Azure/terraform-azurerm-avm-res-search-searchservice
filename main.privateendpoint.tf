@@ -1,78 +1,67 @@
-# TODO remove this code & var.private_endpoints if private link is not support.  Note it must be included in this module if it is supported.
-resource "azurerm_private_endpoint" "this_managed_dns_zone_groups" {
-  for_each = var.private_endpoints
 
-  location                      = each.value.location != null ? each.value.location : var.location
-  name                          = each.value.name != null ? each.value.name : "pe-${var.name}"
-  resource_group_name           = each.value.resource_group_name != null ? each.value.resource_group_name : var.resource_group_name
-  subnet_id                     = each.value.subnet_resource_id
-  custom_network_interface_name = each.value.network_interface_name
-  tags                          = each.value.tags
+locals {
+  core_services_vnet_subnets = cidrsubnets("10.0.0.0/22", 6, 2, 4, 3)
+  # name                 = var.name
+  subnet_address_space = [local.core_services_vnet_subnets[3]]
+}
+
+#VNET for private endpoint 
+resource "azurerm_virtual_network" "this" {
+  address_space       = ["10.0.0.0/22"]
+  location            = var.location
+  name                = "aisearch-vnet-${var.name}"
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
+#Subnet for private endpoint
+resource "azurerm_subnet" "this" {
+  address_prefixes                  = local.subnet_address_space
+  name                              = "aisearch-subnet"
+  resource_group_name               = var.resource_group_name
+  virtual_network_name              = azurerm_virtual_network.this.name
+  private_endpoint_network_policies = "Enabled"
+}
+
+
+# Create Private DNS Zone for Search Service
+resource "azurerm_private_dns_zone" "this" {
+  name                = "privatelink.search.windows.net"
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
+# Create Private DNS Zone Virtual Network Link
+resource "azurerm_private_dns_zone_virtual_network_link" "this" {
+  name                  = "${azurerm_virtual_network.this.name}-link"
+  private_dns_zone_name = azurerm_private_dns_zone.this.name
+  resource_group_name   = var.resource_group_name
+  virtual_network_id    = azurerm_virtual_network.this.id
+  tags                  = var.tags
+}
+
+
+# Create private Endpoint
+resource "azurerm_private_endpoint" "this" {
+  location            = var.location
+  name                = "pe-${var.name}"
+  resource_group_name = var.resource_group_name
+  subnet_id           = azurerm_subnet.this.id
+  tags                = var.tags
 
   private_service_connection {
     is_manual_connection           = false
-    name                           = each.value.private_service_connection_name != null ? each.value.private_service_connection_name : "pse-${var.name}"
-    private_connection_resource_id = azurerm_resource_group.TODO.id # TODO: Replace this dummy resource azurerm_resource_group.TODO with your module resource
-    subresource_names              = ["TODO subresource name, see https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview#private-link-resource"]
-  }
-  dynamic "ip_configuration" {
-    for_each = each.value.ip_configurations
-
-    content {
-      name               = ip_configuration.value.name
-      private_ip_address = ip_configuration.value.private_ip_address
-      member_name        = "TODO subresource name"
-      subresource_name   = "TODO subresource name"
-    }
-  }
-  dynamic "private_dns_zone_group" {
-    for_each = length(each.value.private_dns_zone_resource_ids) > 0 ? ["this"] : []
-
-    content {
-      name                 = each.value.private_dns_zone_group_name
-      private_dns_zone_ids = each.value.private_dns_zone_resource_ids
-    }
+    name                           = "psc-${var.name}"
+    private_connection_resource_id = azurerm_search_service.this.id # TODO: Replace this dummy resource azurerm_resource_group.TODO with your module resource
+    subresource_names              = ["searchService"]
   }
 }
 
-# The PE resource when we are managing **not** the private_dns_zone_group block
-# An example use case is customers using Azure Policy to create private DNS zones
-# e.g. <https://learn.microsoft.com/en-us/azure/cloud-adoption-framework/ready/azure-best-practices/private-link-and-dns-integration-at-scale>
-resource "azurerm_private_endpoint" "this_unmanaged_dns_zone_groups" {
-  for_each = { for k, v in var.private_endpoints : k => v if !var.private_endpoints_manage_dns_zone_group }
-
-  location                      = each.value.location != null ? each.value.location : var.location
-  name                          = each.value.name != null ? each.value.name : "pe-${var.name}"
-  resource_group_name           = each.value.resource_group_name != null ? each.value.resource_group_name : var.resource_group_name
-  subnet_id                     = each.value.subnet_resource_id
-  custom_network_interface_name = each.value.network_interface_name
-  tags                          = each.value.tags
-
-  private_service_connection {
-    is_manual_connection           = false
-    name                           = each.value.private_service_connection_name != null ? each.value.private_service_connection_name : "pse-${var.name}"
-    private_connection_resource_id = azurerm_resource_group.TODO.id # TODO: Replace this dummy resource azurerm_resource_group.TODO with your module resource
-    subresource_names              = ["TODO subresource name, see https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-overview#private-link-resource"]
-  }
-  dynamic "ip_configuration" {
-    for_each = each.value.ip_configurations
-
-    content {
-      name               = ip_configuration.value.name
-      private_ip_address = ip_configuration.value.private_ip_address
-      member_name        = "TODO subresource name"
-      subresource_name   = "TODO subresource name"
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [private_dns_zone_group]
-  }
-}
-
-resource "azurerm_private_endpoint_application_security_group_association" "this" {
-  for_each = local.private_endpoint_application_security_group_associations
-
-  application_security_group_id = each.value.asg_resource_id
-  private_endpoint_id           = var.private_endpoints_manage_dns_zone_group ? azurerm_private_endpoint.this_managed_dns_zone_groups[each.value.pe_key].id : azurerm_private_endpoint.this_unmanaged_dns_zone_groups[each.value.pe_key].id
+resource "azurerm_private_dns_a_record" "this" {
+  name                = azurerm_search_service.this.name
+  records             = [azurerm_private_endpoint.this.private_service_connection[0].private_ip_address]
+  resource_group_name = azurerm_private_dns_zone.this.resource_group_name
+  ttl                 = 300
+  zone_name           = azurerm_private_dns_zone.this.name
+  tags                = var.tags
 }

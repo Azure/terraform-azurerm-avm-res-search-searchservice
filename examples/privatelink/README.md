@@ -1,7 +1,7 @@
 <!-- BEGIN_TF_DOCS -->
 # Default example
 
-This deploys the module in its simplest form.
+This deploys the module with a private link.
 
 ```hcl
 terraform {
@@ -55,16 +55,23 @@ module "search_service" {
   source = "../../"
   # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
   # ...
-  location            = var.location
-  name                = "bnetiaisdemo"
-  resource_group_name = azurerm_resource_group.this.name
-  sku                 = "standard"
+  location                      = var.location
+  name                          = "bnetiaisdemoprivatenet"
+  resource_group_name           = azurerm_resource_group.this.name
+  sku                           = "standard"
+  public_network_access_enabled = var.public_network_access_enabled
+  allowed_ips                   = var.azure_ai_allowed_ips
 
+  local_authentication_enabled = var.local_authentication_enabled
   managed_identities = {
     system_assigned = true
   }
   enable_telemetry = var.enable_telemetry # see variables.tf
 }
+
+
+
+
 ```
 
 <!-- markdownlint-disable MD033 -->
@@ -94,11 +101,27 @@ No required inputs.
 
 The following input variables are optional (have default values):
 
+### <a name="input_azure_ai_allowed_ips"></a> [azure\_ai\_allowed\_ips](#input\_azure\_ai\_allowed\_ips)
+
+Description: One or more IP Addresses, or CIDR Blocks which should be able to access the AI Search service
+
+Type: `list(string)`
+
+Default: `[]`
+
 ### <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry)
 
 Description: This variable controls whether or not telemetry is enabled for the module.  
 For more information see <https://aka.ms/avm/telemetryinfo>.  
 If it is set to false, then no telemetry will be collected.
+
+Type: `bool`
+
+Default: `true`
+
+### <a name="input_local_authentication_enabled"></a> [local\_authentication\_enabled](#input\_local\_authentication\_enabled)
+
+Description: This variable controls whether or not local authentication is enabled for the module.
 
 Type: `bool`
 
@@ -111,6 +134,14 @@ Description: The location for the resources.
 Type: `string`
 
 Default: `"westus"`
+
+### <a name="input_public_network_access_enabled"></a> [public\_network\_access\_enabled](#input\_public\_network\_access\_enabled)
+
+Description: This variable controls whether or not public network access is enabled for the module.
+
+Type: `bool`
+
+Default: `false`
 
 ## Outputs
 
@@ -137,6 +168,7 @@ Version: ~> 0.3
 Source: ../../
 
 Version:
+
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection
