@@ -1,8 +1,6 @@
 
 locals {
-
   core_services_vnet_subnets = cidrsubnets("10.0.0.0/22", 6, 2, 4, 3)
-
   # name                 = var.name
   subnet_address_space = [local.core_services_vnet_subnets[3]]
 }
@@ -45,17 +43,15 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
 
 # Create private Endpoint
 resource "azurerm_private_endpoint" "this" {
-
   location            = var.location
   name                = "pe-${var.name}"
   resource_group_name = var.resource_group_name
   subnet_id           = azurerm_subnet.this.id
   tags                = var.tags
 
-
   private_service_connection {
-    name                           = "psc-${var.name}"
     is_manual_connection           = false
+    name                           = "psc-${var.name}"
     private_connection_resource_id = azurerm_search_service.this.id # TODO: Replace this dummy resource azurerm_resource_group.TODO with your module resource
     subresource_names              = ["searchService"]
   }
@@ -63,9 +59,9 @@ resource "azurerm_private_endpoint" "this" {
 
 resource "azurerm_private_dns_a_record" "this" {
   name                = azurerm_search_service.this.name
-  zone_name           = azurerm_private_dns_zone.this.name
+  records             = [azurerm_private_endpoint.this.private_service_connection[0].private_ip_address]
   resource_group_name = azurerm_private_dns_zone.this.resource_group_name
   ttl                 = 300
-  records             = [azurerm_private_endpoint.this.private_service_connection[0].private_ip_address]
+  zone_name           = azurerm_private_dns_zone.this.name
   tags                = var.tags
 }
