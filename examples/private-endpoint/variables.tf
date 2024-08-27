@@ -26,8 +26,8 @@ variable "location" {
   description = "The location for the resources."
 }
 
-variable "public_network_access_enabled" {
-  type        = bool
-  default     = false
-  description = "This variable controls whether or not public network access is enabled for the module."
+variable "tags" {
+  type        = map(string)
+  default     = null
+  description = "(Optinal) A mapping of tags to assign to the resource."
 }
