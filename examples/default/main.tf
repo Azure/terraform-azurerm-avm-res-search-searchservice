@@ -51,7 +51,7 @@ module "search_service" {
   # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
   # ...
   location            = var.location
-  name                = "bnetiaisdemo"
+  name                = module.naming.search_service.name_unique
   resource_group_name = azurerm_resource_group.this.name
   sku                 = "standard"
 
