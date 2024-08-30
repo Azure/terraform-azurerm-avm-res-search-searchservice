@@ -43,7 +43,7 @@ resource "azurerm_search_service" "this" {
   tags                                     = var.tags
 
   dynamic "identity" {
-    for_each = var.managed_identities == {} ? [] : [var.managed_identities]
+    for_each = (var.managed_identities.system_assigned || length(var.managed_identities.user_assigned_resource_ids) > 0) ? { this = var.managed_identities } : {}
     content {
       # only SystemAssigned is supported
       type = identity.value.system_assigned ? "SystemAssigned" : null
