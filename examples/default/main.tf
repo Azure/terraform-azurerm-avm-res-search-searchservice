@@ -55,8 +55,8 @@ module "search_service" {
   resource_group_name = azurerm_resource_group.this.name
   sku                 = "standard"
 
-  managed_identities = {
-    system_assigned = true
-  }
+  # managed_identities = {
+  #   system_assigned = true
+  # }
   enable_telemetry = var.enable_telemetry # see variables.tf
 }
