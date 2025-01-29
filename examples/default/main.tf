@@ -3,8 +3,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~>3.74"
-      version = "~>3.74"
+      version = "~>4.0"
     }
     random = {
       source  = "hashicorp/random"
@@ -13,7 +12,9 @@ terraform {
   }
 }
 provider "azurerm" {
-  features {}
+  features {
+
+  }
 }
 
 ## Section to provide a random Azure region for the resource group
