@@ -161,7 +161,7 @@ DESCRIPTION
 variable "network_rule_bypass_option" {
   type        = string
   default     = "None"
-  description = "(Optional) Whether to allow trusted Azure services to access a network restricted Container Registry? Possible values are `None` and `AzureServices`. Defaults to `None`."
+  description = "(Optional) Whether to allow trusted Azure services to access a network restricted Container Registry. Possible values are None and AzureServices. Defaults to None."
 }
 
 variable "partition_count" {
