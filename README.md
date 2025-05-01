@@ -219,7 +219,7 @@ Default: `{}`
 
 ### <a name="input_network_rule_bypass_option"></a> [network\_rule\_bypass\_option](#input\_network\_rule\_bypass\_option)
 
-Description: (Optional) Specifies whether trusted Azure services are allowed to access a network-restricted Container Registry. Possible values are `None` and `AzureServices`. Defaults to `None`.
+Description: (Optional) Whether to allow trusted Azure services to access a network restricted Container Registry. Possible values are None and AzureServices. Defaults to None.
 
 Type: `string`
 
