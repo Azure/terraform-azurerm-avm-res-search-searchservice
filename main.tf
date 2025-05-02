@@ -72,6 +72,7 @@ resource "azurerm_search_service" "this" {
   customer_managed_key_enforcement_enabled = var.customer_managed_key_enforcement_enabled
   hosting_mode                             = var.hosting_mode
   local_authentication_enabled             = var.local_authentication_enabled
+  network_rule_bypass_option               = var.network_rule_bypass_option
   partition_count                          = var.partition_count
   public_network_access_enabled            = var.public_network_access_enabled
   replica_count                            = var.replica_count
