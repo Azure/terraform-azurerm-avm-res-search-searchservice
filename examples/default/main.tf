@@ -49,7 +49,8 @@ resource "azurerm_resource_group" "this" {
 # with a data source.
 module "search_service" {
   source = "../../"
-  # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
+
+  # source             = "Azure/avm-res-search-searchservice/azurerm"
   # ...
   location            = var.location
   name                = module.naming.search_service.name_unique
