@@ -47,7 +47,7 @@ resource "azurerm_resource_group" "this" {
   name     = module.naming.resource_group.name_unique
 }
 
-#VNET for private endpoint 
+#VNET for private endpoint
 resource "azurerm_virtual_network" "this" {
   address_space       = ["10.0.0.0/22"]
   location            = azurerm_resource_group.this.location
@@ -68,7 +68,7 @@ resource "azurerm_subnet" "this" {
 
 # Create Private DNS Zone for Search Service
 resource "azurerm_private_dns_zone" "this" {
-  name                = "privatelink.aisearch.windows.net"
+  name                = "privatelink.search.windows.net"
   resource_group_name = azurerm_resource_group.this.name
   tags                = var.tags
 }
