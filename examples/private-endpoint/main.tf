@@ -88,11 +88,18 @@ resource "azurerm_private_dns_zone_virtual_network_link" "this" {
 # with a data source.
 module "search_service" {
   source = "../../"
+
   # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
   # ...
-  location            = azurerm_resource_group.this.location
-  name                = module.naming.search_service.name_unique
-  resource_group_name = azurerm_resource_group.this.name
+  location                     = azurerm_resource_group.this.location
+  name                         = module.naming.search_service.name_unique
+  resource_group_name          = azurerm_resource_group.this.name
+  allowed_ips                  = var.azure_ai_allowed_ips
+  enable_telemetry             = var.enable_telemetry # see variables.tf
+  local_authentication_enabled = var.local_authentication_enabled
+  managed_identities = {
+    system_assigned = true
+  }
   private_endpoints = {
     primary = {
       private_dns_zone_resource_ids = [azurerm_private_dns_zone.this.id]
@@ -100,21 +107,8 @@ module "search_service" {
       subnet_resource_id            = azurerm_subnet.this.id
     }
   }
-
-  sku                           = "standard"
   public_network_access_enabled = false
-
-
-  allowed_ips = var.azure_ai_allowed_ips
-
-
-  local_authentication_enabled = var.local_authentication_enabled
-  managed_identities = {
-    system_assigned = true
-  }
-  enable_telemetry = var.enable_telemetry # see variables.tf
-
-
+  sku                           = "standard"
 }
 
 resource "azurerm_private_dns_a_record" "this" {
