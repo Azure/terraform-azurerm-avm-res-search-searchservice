@@ -49,15 +49,15 @@ resource "azurerm_resource_group" "this" {
 # with a data source.
 module "search_service" {
   source = "../../"
-  # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
+
+  # source             = "Azure/avm-res-search-searchservice/azurerm"
   # ...
   location            = var.location
   name                = module.naming.search_service.name_unique
   resource_group_name = azurerm_resource_group.this.name
-  sku                 = "standard"
-
   # managed_identities = {
   #   system_assigned = true
   # }
   enable_telemetry = var.enable_telemetry # see variables.tf
+  sku              = "standard"
 }
