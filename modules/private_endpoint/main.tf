@@ -1,25 +1,21 @@
 locals {
   avm_azapi_header = "AVM/0.x.x avm-res-search-searchservice/modules/private_endpoint"
-
+  # PE keys whose DNS zone group should be created.
+  dns_zone_group_keys = toset([for k, v in var.endpoints : k if length(v.private_dns_zone_resource_ids) > 0])
+  # Per-PE locks (only PEs whose lock is non-null).
+  locks       = { for k, v in var.endpoints : k => v.lock if v.lock != null }
   parent_name = reverse(split("/", var.private_link_service_resource_id))[0]
-
   # Flatten per-PE role assignments into a single map keyed by "<pe_key>-<ra_key>".
   role_assignments_flat = merge([
-    for pe_key, pe in var.private_endpoints : {
+    for pe_key, pe in var.endpoints : {
       for ra_key, ra in pe.role_assignments :
       "${pe_key}-${ra_key}" => merge(ra, { pe_key = pe_key })
     }
   ]...)
-
-  # Per-PE locks (only PEs whose lock is non-null).
-  locks = { for k, v in var.private_endpoints : k => v.lock if v.lock != null }
-
-  # PE keys whose DNS zone group should be created.
-  dns_zone_group_keys = toset([for k, v in var.private_endpoints : k if length(v.private_dns_zone_resource_ids) > 0])
 }
 
 resource "azapi_resource" "this" {
-  for_each = var.private_endpoints
+  for_each = var.endpoints
 
   location  = var.location
   name      = coalesce(each.value.name, "pe-${local.parent_name}-${each.key}")
@@ -90,13 +86,13 @@ resource "azapi_resource" "this" {
 resource "azapi_resource" "dns_zone_group" {
   for_each = local.dns_zone_group_keys
 
-  name      = var.private_endpoints[each.value].private_dns_zone_group_name
+  name      = var.endpoints[each.value].private_dns_zone_group_name
   parent_id = azapi_resource.this[each.value].id
   type      = var.resource_types.network_private_endpoints_private_dns_zone_groups
   body = {
     properties = {
       privateDnsZoneConfigs = [
-        for idx, zone_id in tolist(var.private_endpoints[each.value].private_dns_zone_resource_ids) : {
+        for idx, zone_id in tolist(var.endpoints[each.value].private_dns_zone_resource_ids) : {
           name = "config-${idx + 1}"
           properties = {
             privateDnsZoneId = zone_id

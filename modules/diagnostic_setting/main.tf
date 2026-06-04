@@ -1,7 +1,6 @@
 locals {
   avm_azapi_header = "AVM/0.x.x avm-res-search-searchservice/modules/diagnostic_setting"
-
-  parent_name = reverse(split("/", var.parent_id))[0]
+  parent_name      = reverse(split("/", var.parent_id))[0]
 }
 
 resource "azapi_resource" "this" {

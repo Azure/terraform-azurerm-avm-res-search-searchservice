@@ -1,5 +1,21 @@
 locals {
   # ---------------------------------------------------------------------------
+  # Role definition resolution — shared across the root `role_assignments`
+  # and any per-private-endpoint role assignments.
+  # ---------------------------------------------------------------------------
+  # Flat key→assignment view of every role assignment in the module (both root
+  # and per-PE). Keys are guaranteed unique because PE-level keys are prefixed
+  # with the PE key.
+  all_role_assignments = merge(
+    var.role_assignments,
+    merge([
+      for pe_k, pe_v in var.private_endpoints : {
+        for ra_k, ra_v in pe_v.role_assignments :
+        "${pe_k}-${ra_k}" => ra_v
+      }
+    ]...)
+  )
+  # ---------------------------------------------------------------------------
   # Auth options body (only valid when local auth enabled)
   # ---------------------------------------------------------------------------
   auth_options_body = (
@@ -69,21 +85,20 @@ locals {
     ipRules = var.allowed_ips == null ? [] : [for ip in var.allowed_ips : { value = ip }]
   }
   # ---------------------------------------------------------------------------
-  # Role definition resolution — shared across the root `role_assignments`
-  # and any per-private-endpoint role assignments.
+  # Per-private-endpoint parent_id resolution.
+  #
+  # The standard `private_endpoints` interface exposes `resource_group_name`
+  # (rather than `parent_id`) on each PE so that consumers can target a
+  # different resource group from the one hosting the parent resource. When
+  # set we build the full RG resource ID using the parent's subscription;
+  # otherwise we fall back to the parent's own resource group resource ID
+  # (which is exactly `var.parent_id`).
   # ---------------------------------------------------------------------------
-  # Flat key→assignment view of every role assignment in the module (both root
-  # and per-PE). Keys are guaranteed unique because PE-level keys are prefixed
-  # with the PE key.
-  all_role_assignments = merge(
-    var.role_assignments,
-    merge([
-      for pe_k, pe_v in var.private_endpoints : {
-        for ra_k, ra_v in pe_v.role_assignments :
-        "${pe_k}-${ra_k}" => ra_v
-      }
-    ]...)
-  )
+  parent_subscription_id = provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", var.parent_id).subscription_id
+  private_endpoint_parent_ids = {
+    for k, v in var.private_endpoints :
+    k => v.resource_group_name == null ? var.parent_id : format("/subscriptions/%s/resourceGroups/%s", local.parent_subscription_id, v.resource_group_name)
+  }
   # Assignments where `role_definition_id_or_name` is a friendly name and so
   # require a subscription-scope role definition lookup.
   role_assignments_requiring_lookup = {

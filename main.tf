@@ -72,22 +72,22 @@ module "lock" {
   source = "./modules/lock"
   count  = var.lock == null ? 0 : 1
 
-  parent_id = azapi_resource.this.id
-  kind      = var.lock.kind
-  name      = var.lock.name
+  kind             = var.lock.kind
+  parent_id        = azapi_resource.this.id
+  enable_telemetry = var.enable_telemetry
+  name             = var.lock.name
   resource_types = {
     authorization_locks = var.resource_types.authorization_locks
   }
-  enable_telemetry = var.enable_telemetry
-  retry            = var.retry
-  timeouts         = var.timeouts
+  retry    = var.retry
+  timeouts = var.timeouts
 }
 
 module "role_assignment" {
   source = "./modules/role_assignment"
 
   parent_id = azapi_resource.this.id
-  role_assignments = {
+  assignments = {
     for k, v in var.role_assignments : k => {
       role_definition_resource_id            = local.role_definition_resource_ids[k]
       principal_id                           = v.principal_id
@@ -99,12 +99,12 @@ module "role_assignment" {
       skip_service_principal_aad_check       = v.skip_service_principal_aad_check
     }
   }
+  enable_telemetry = var.enable_telemetry
   resource_types = {
     authorization_role_assignments = var.resource_types.authorization_role_assignments
   }
-  enable_telemetry = var.enable_telemetry
-  retry            = var.retry
-  timeouts         = var.timeouts
+  retry    = var.retry
+  timeouts = var.timeouts
 }
 
 module "diagnostic_setting" {
@@ -112,10 +112,10 @@ module "diagnostic_setting" {
 
   parent_id           = azapi_resource.this.id
   diagnostic_settings = var.diagnostic_settings
+  enable_telemetry    = var.enable_telemetry
   resource_types = {
     insights_diagnostic_settings = var.resource_types.insights_diagnostic_settings
   }
-  enable_telemetry = var.enable_telemetry
-  retry            = var.retry
-  timeouts         = var.timeouts
+  retry    = var.retry
+  timeouts = var.timeouts
 }

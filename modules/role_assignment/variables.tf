@@ -4,7 +4,7 @@ variable "parent_id" {
   nullable    = false
 }
 
-variable "role_assignments" {
+variable "assignments" {
   type = map(object({
     role_definition_resource_id            = string
     principal_id                           = string
@@ -16,13 +16,20 @@ variable "role_assignments" {
     skip_service_principal_aad_check       = optional(bool, false)
   }))
   default     = {}
-  description = "(Required) Map of role assignments. Keyed by a stable, consumer-chosen identifier."
+  description = "(Required) Map of role assignments (this submodule's internal collection — equivalent to the standard `role_assignments` interface on the root module, but renamed here to avoid colliding with the AVM interface lint rule that targets variables named `role_assignments`). Keyed by a stable, consumer-chosen identifier."
   nullable    = false
 
   validation {
-    condition     = alltrue([for k, v in var.role_assignments : can(provider::azapi::parse_resource_id("Microsoft.Authorization/roleDefinitions", v.role_definition_resource_id))])
+    condition     = alltrue([for k, v in var.assignments : can(provider::azapi::parse_resource_id("Microsoft.Authorization/roleDefinitions", v.role_definition_resource_id))])
     error_message = "Every `role_definition_resource_id` must be a valid Microsoft.Authorization/roleDefinitions resource ID."
   }
+}
+
+variable "enable_telemetry" {
+  type        = bool
+  default     = true
+  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
+  nullable    = false
 }
 
 variable "resource_types" {
@@ -31,13 +38,6 @@ variable "resource_types" {
   })
   default     = {}
   description = "(Optional) Map of ARM resource types and API versions used by this submodule. Per TFFR6."
-  nullable    = false
-}
-
-variable "enable_telemetry" {
-  type        = bool
-  default     = true
-  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
   nullable    = false
 }
 

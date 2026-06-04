@@ -11,12 +11,12 @@ module "private_endpoint" {
 
   location                         = var.location
   private_link_service_resource_id = azapi_resource.this.id
-
-  private_endpoints = {
+  enable_telemetry                 = var.enable_telemetry
+  endpoints = {
     for pe_k, pe_v in var.private_endpoints :
     pe_k => {
       name                                    = pe_v.name
-      parent_id                               = var.parent_id
+      parent_id                               = local.private_endpoint_parent_ids[pe_k]
       subnet_resource_id                      = pe_v.subnet_resource_id
       subresource_name                        = "searchService"
       network_interface_name                  = pe_v.network_interface_name
@@ -42,14 +42,12 @@ module "private_endpoint" {
       }
     }
   }
-
   resource_types = {
     network_private_endpoints                         = var.resource_types.network_private_endpoints
     network_private_endpoints_private_dns_zone_groups = var.resource_types.network_private_endpoints_private_dns_zone_groups
     authorization_locks                               = var.resource_types.authorization_locks
     authorization_role_assignments                    = var.resource_types.authorization_role_assignments
   }
-  enable_telemetry = var.enable_telemetry
-  retry            = var.retry
-  timeouts         = var.timeouts
+  retry    = var.retry
+  timeouts = var.timeouts
 }

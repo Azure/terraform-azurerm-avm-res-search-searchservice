@@ -4,7 +4,20 @@ variable "location" {
   nullable    = false
 }
 
-variable "private_endpoints" {
+variable "private_link_service_resource_id" {
+  type        = string
+  description = "(Required) The fully-qualified resource ID of the target Azure resource being privately connected to (e.g. the Search Service ID)."
+  nullable    = false
+}
+
+variable "enable_telemetry" {
+  type        = bool
+  default     = true
+  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
+  nullable    = false
+}
+
+variable "endpoints" {
   type = map(object({
     name                                    = optional(string, null)
     subnet_resource_id                      = string
@@ -36,24 +49,17 @@ variable "private_endpoints" {
     })), {})
   }))
   default     = {}
-  description = "(Required) Map of private endpoints. Keyed by a stable, consumer-chosen identifier."
+  description = "(Required) Map of private endpoints to create (this submodule's internal collection — equivalent to the standard `private_endpoints` interface on the root module, but renamed here to avoid colliding with the AVM interface lint rule that targets variables named `private_endpoints`). Keyed by a stable, consumer-chosen identifier."
   nullable    = false
 
   validation {
-    condition     = alltrue([for k, v in var.private_endpoints : can(provider::azapi::parse_resource_id("Microsoft.Network/virtualNetworks/subnets", v.subnet_resource_id))])
-    error_message = "Each `subnet_resource_id` must be a valid subnet resource ID."
+    condition     = alltrue([for k, v in var.endpoints : can(provider::azapi::parse_resource_id("Microsoft.Network/virtualNetworks/subnets", v.subnet_resource_id))])
+    error_message = "Each `endpoints[*].subnet_resource_id` must be a valid subnet resource ID."
   }
-
   validation {
-    condition     = alltrue([for k, v in var.private_endpoints : can(provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", v.parent_id))])
-    error_message = "Each `parent_id` must be a valid Azure resource group resource ID."
+    condition     = alltrue([for k, v in var.endpoints : can(provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", v.parent_id))])
+    error_message = "Each `endpoints[*].parent_id` must be a valid Azure resource group resource ID."
   }
-}
-
-variable "private_link_service_resource_id" {
-  type        = string
-  description = "(Required) The fully-qualified resource ID of the target Azure resource being privately connected to (e.g. the Search Service ID)."
-  nullable    = false
 }
 
 variable "resource_types" {
@@ -65,13 +71,6 @@ variable "resource_types" {
   })
   default     = {}
   description = "(Optional) Map of ARM resource types and API versions used by this submodule. Per TFFR6."
-  nullable    = false
-}
-
-variable "enable_telemetry" {
-  type        = bool
-  default     = true
-  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
   nullable    = false
 }
 

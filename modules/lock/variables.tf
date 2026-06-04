@@ -15,12 +15,10 @@ variable "parent_id" {
   nullable    = false
 }
 
-variable "resource_types" {
-  type = object({
-    authorization_locks = optional(string, "Microsoft.Authorization/locks@2020-05-01")
-  })
-  default     = {}
-  description = "(Optional) Map of ARM resource types and API versions used by this submodule. Per TFFR6."
+variable "enable_telemetry" {
+  type        = bool
+  default     = true
+  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
   nullable    = false
 }
 
@@ -30,10 +28,12 @@ variable "name" {
   description = "(Optional) The name of the lock. If unset, a name is generated based on `kind`."
 }
 
-variable "enable_telemetry" {
-  type        = bool
-  default     = true
-  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
+variable "resource_types" {
+  type = object({
+    authorization_locks = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+  })
+  default     = {}
+  description = "(Optional) Map of ARM resource types and API versions used by this submodule. Per TFFR6."
   nullable    = false
 }
 

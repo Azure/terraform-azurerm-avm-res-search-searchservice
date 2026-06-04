@@ -41,11 +41,11 @@ resource "azapi_resource" "resource_group" {
 module "search_service" {
   source = "../../"
 
-  location            = var.location
-  name                = "search-avm-${random_string.suffix.result}"
-  resource_group_name = azapi_resource.resource_group.name
-  enable_telemetry    = var.enable_telemetry
-  sku                 = "standard"
+  location         = var.location
+  name             = "search-avm-${random_string.suffix.result}"
+  parent_id        = azapi_resource.resource_group.id
+  enable_telemetry = var.enable_telemetry
+  sku              = "standard"
 }
 ```
 

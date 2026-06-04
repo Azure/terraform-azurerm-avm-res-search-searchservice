@@ -9,7 +9,18 @@
 >
 > Three residual cases need a one-off manual step:
 >
-> 1. **Private DNS zone groups.** Pre-AzAPI these were an inline block on `azurerm_private_endpoint`; they are now a standalone `azapi_resource.private_endpoint_dns_zone_group["<key>"]`. Add a temporary `import` block per affected PE before the first `apply`:
+> 1. **Replace `resource_group_name` / `location` with `parent_id`.** Per [TFRMFR1](https://azure.github.io/Azure-Verified-Modules/spec/TFRMFR1), the module now takes a single `parent_id` string (the fully-qualified resource ID of the parent resource group). `location` remains a separate input, but the `resource_group_name` input has been removed. Update your module call:
+>    ```diff
+>     module "search" {
+>       source              = "Azure/avm-res-search-searchservice/azurerm"
+>       location            = "eastus"
+>       name                = "my-search"
+>    -  resource_group_name = "my-rg"
+>    +  parent_id           = "/subscriptions/.../resourceGroups/my-rg"
+>     }
+>    
+```
+> 2. **Private DNS zone groups.** Pre-AzAPI these were an inline block on `azurerm_private_endpoint`; they are now a standalone `azapi_resource.private_endpoint_dns_zone_group["<key>"]`. Add a temporary `import` block per affected PE before the first `apply`:
 >    ```hcl
 >    import {
 >      to = module.search.azapi_resource.private_endpoint_dns_zone_group["<pe-key>"]
@@ -17,13 +28,14 @@
 >    }
 >    
 ```
-> 2. **ASG associations.** The standalone `azurerm_private_endpoint_application_security_group_association` resource is gone — ASGs are now inline on the PE body. Drop the old state entries (they are idempotent joins; the Azure-side association is untouched): `terraform state rm 'module.search.azurerm_private_endpoint_application_security_group_association.this["<key>"]'`.
-> 3. **Removed input `private_endpoints_manage_dns_zone_group`.** DNS zone group management is now per-PE: set `private_dns_zone_resource_ids = []` on a PE that should be unmanaged. Consumers who previously had this flag set to `false` must also `terraform state mv 'module.search.azurerm_private_endpoint.this_unmanaged_dns_zone_groups["<key>"]' 'module.search.azapi_resource.private_endpoint["<key>"]'` per PE before the first plan.
+> 3. **ASG associations.** The standalone `azurerm_private_endpoint_application_security_group_association` resource is gone — ASGs are now inline on the PE body. Drop the old state entries (they are idempotent joins; the Azure-side association is untouched): `terraform state rm 'module.search.azurerm_private_endpoint_application_security_group_association.this["<key>"]'`.
+> 4. **Removed input `private_endpoints_manage_dns_zone_group`.** DNS zone group management is now per-PE: set `private_dns_zone_resource_ids = []` on a PE that should be unmanaged. Consumers who previously had this flag set to `false` must also `terraform state mv 'module.search.azurerm_private_endpoint.this_unmanaged_dns_zone_groups["<key>"]' 'module.search.azapi_resource.private_endpoint["<key>"]'` per PE before the first plan.
 >
 > For Terraform < 1.8 or for a tool-driven migration that also rewrites HCL, use [`aztfmigrate`](https://learn.microsoft.com/azure/developer/terraform/how-to-migrate-between-azurerm-and-azapi).
 >
 > Other notes:
 >
+> - New `parent_id` variable ([TFRMFR1](https://azure.github.io/Azure-Verified-Modules/spec/TFRMFR1)) replaces `resource_group_name`. The `location` input is unchanged.
 > - New `resource_types`, `retry`, and `timeouts` variables ([TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6), [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)) — all default sensibly, no input changes required for typical usage.
 > - Output shapes: `output.resource` and `output.private_endpoints` now wrap `azapi_resource` objects rather than `azurerm_search_service` / `azurerm_private_endpoint`. Downstream code should read `output.resource_id` (unchanged) where possible.
 
@@ -58,21 +70,11 @@ The following requirements are needed by this module:
 
 The following resources are used by this module:
 
-- [azapi_resource.diagnostic_setting](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.private_endpoint](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.private_endpoint_dns_zone_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.private_endpoint_lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.private_endpoint_role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) (resource)
-- [random_uuid.private_endpoint_role_assignment](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
-- [random_uuid.role_assignment](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
 - [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
-- [azapi_resource_list.private_endpoint_role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) (data source)
 - [azapi_resource_list.role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) (data source)
 - [modtm_module_source.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/data-sources/module_source) (data source)
 
@@ -93,9 +95,11 @@ Description: (Required) The name of the Azure AI Search Service. Must be 2-60 ch
 
 Type: `string`
 
-### <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name)
+### <a name="input_parent_id"></a> [parent\_id](#input\_parent\_id)
 
-Description: (Required) The resource group where the resource will be deployed.
+Description: (Required) The fully-qualified ARM resource ID of the resource group into which the Search Service will be deployed. Example: `/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example-rg`.
+
+This module does not create the resource group. The consumer (or composing pattern module) is responsible for providing a `parent_id` for an existing resource group.
 
 Type: `string`
 
@@ -282,7 +286,7 @@ Description: A map of private endpoints to create on the Search Service. The map
 - `private_service_connection_name` - (Optional) Private service connection name. One is generated if unset.
 - `network_interface_name` - (Optional) The custom network interface name. One is generated by Azure if unset.
 - `location` - (Optional) The location to deploy the private endpoint in. Defaults to `var.location`.
-- `resource_group_name` - (Optional) The resource group to deploy the private endpoint in. Defaults to `var.resource_group_name`.
+- `resource_group_name` - (Optional) The name of the resource group to deploy the private endpoint in. Defaults to the resource group of the parent (i.e. the resource group derived from `var.parent_id`).
 - `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint.
   - `name` - (Required) The IP configuration name.
   - `private_ip_address` - (Required) The static private IP address to assign.
@@ -323,14 +327,6 @@ map(object({
 ```
 
 Default: `{}`
-
-### <a name="input_private_endpoints_manage_dns_zone_group"></a> [private\_endpoints\_manage\_dns\_zone\_group](#input\_private\_endpoints\_manage\_dns\_zone\_group)
-
-Description: (Optional) Whether this module manages the private DNS zone groups. If `false`, you must manage them externally (for example via Azure Policy).
-
-Type: `bool`
-
-Default: `true`
 
 ### <a name="input_public_network_access_enabled"></a> [public\_network\_access\_enabled](#input\_public\_network\_access\_enabled)
 
@@ -484,7 +480,7 @@ Description: The name of the Azure AI Search Service.
 
 ### <a name="output_private_endpoints"></a> [private\_endpoints](#output\_private\_endpoints)
 
-Description: A map of private endpoints. The map key is the supplied input to `var.private_endpoints`. The map value is the full `azapi_resource` object for the private endpoint.
+Description: A map keyed by `var.private_endpoints` key. Each value is `{ resource_id, dns_zone_group_resource_id, lock_resource_id, role_assignment_resource_ids, resource }` for that PE.
 
 ### <a name="output_resource"></a> [resource](#output\_resource)
 
@@ -500,7 +496,31 @@ Description: The principal ID of the Search Service's system-assigned managed id
 
 ## Modules
 
-No modules.
+The following Modules are called:
+
+### <a name="module_diagnostic_setting"></a> [diagnostic\_setting](#module\_diagnostic\_setting)
+
+Source: ./modules/diagnostic_setting
+
+Version:
+
+### <a name="module_lock"></a> [lock](#module\_lock)
+
+Source: ./modules/lock
+
+Version:
+
+### <a name="module_private_endpoint"></a> [private\_endpoint](#module\_private\_endpoint)
+
+Source: ./modules/private_endpoint
+
+Version:
+
+### <a name="module_role_assignment"></a> [role\_assignment](#module\_role\_assignment)
+
+Source: ./modules/role_assignment
+
+Version:
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection

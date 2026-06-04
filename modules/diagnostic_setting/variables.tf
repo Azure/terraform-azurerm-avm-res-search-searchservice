@@ -25,21 +25,25 @@ variable "diagnostic_settings" {
     condition     = alltrue([for k, v in var.diagnostic_settings : contains(["Dedicated", "AzureDiagnostics"], v.log_analytics_destination_type)])
     error_message = "Each `log_analytics_destination_type` must be one of: Dedicated, AzureDiagnostics."
   }
-
   validation {
     condition     = alltrue([for k, v in var.diagnostic_settings : v.workspace_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.OperationalInsights/workspaces", v.workspace_resource_id))])
     error_message = "Each `workspace_resource_id` must be a valid Log Analytics workspace resource ID, or `null`."
   }
-
   validation {
     condition     = alltrue([for k, v in var.diagnostic_settings : v.storage_account_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.Storage/storageAccounts", v.storage_account_resource_id))])
     error_message = "Each `storage_account_resource_id` must be a valid Storage Account resource ID, or `null`."
   }
-
   validation {
     condition     = alltrue([for k, v in var.diagnostic_settings : v.event_hub_authorization_rule_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.EventHub/namespaces/authorizationRules", v.event_hub_authorization_rule_resource_id))])
     error_message = "Each `event_hub_authorization_rule_resource_id` must be a valid Event Hub authorization rule resource ID, or `null`."
   }
+}
+
+variable "enable_telemetry" {
+  type        = bool
+  default     = true
+  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
+  nullable    = false
 }
 
 variable "resource_types" {
@@ -48,13 +52,6 @@ variable "resource_types" {
   })
   default     = {}
   description = "(Optional) Map of ARM resource types and API versions used by this submodule. Per TFFR6."
-  nullable    = false
-}
-
-variable "enable_telemetry" {
-  type        = bool
-  default     = true
-  description = "(Optional) Whether to include the AVM telemetry User-Agent header on AzAPI requests."
   nullable    = false
 }
 

@@ -3,11 +3,11 @@ locals {
 }
 
 resource "random_uuid" "this" {
-  for_each = var.role_assignments
+  for_each = var.assignments
 }
 
 resource "azapi_resource" "this" {
-  for_each = var.role_assignments
+  for_each = var.assignments
 
   name      = random_uuid.this[each.key].result
   parent_id = var.parent_id
@@ -30,7 +30,7 @@ resource "azapi_resource" "this" {
   response_export_values = []
   # When assigning to a freshly-created service principal Azure AD replication
   # may lag; retry on the relevant error message rather than sleeping.
-  retry = anytrue([for v in values(var.role_assignments) : v.skip_service_principal_aad_check]) ? {
+  retry = anytrue([for v in values(var.assignments) : v.skip_service_principal_aad_check]) ? {
     error_message_regex = concat(
       try(var.retry.error_message_regex, []),
       ["PrincipalNotFound", "does not exist in the directory"]
