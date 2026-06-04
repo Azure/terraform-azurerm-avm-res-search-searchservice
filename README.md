@@ -3,12 +3,29 @@
 # Azure Verified Module — Azure AI Search Service
 
 > [!IMPORTANT]
-> **Breaking change — AzAPI migration.** Starting with the next minor release, this module is built on the [AzAPI provider](https://registry.terraform.io/providers/Azure/azapi/latest) per the AVM [TFFR3](https://azure.github.io/Azure-Verified-Modules/spec/TFFR3) AzAPI-first rule. The `azurerm` provider is no longer required. Existing consumers should:
+> **Breaking change — AzAPI migration.** Starting with the next minor release, this module is built on the [AzAPI provider](https://registry.terraform.io/providers/Azure/azapi/latest) per the AVM [TFFR3](https://azure.github.io/Azure-Verified-Modules/spec/TFFR3) AzAPI-first rule. The `azurerm` provider is no longer required.
 >
-> 1. Remove the `azurerm` provider declaration from any root configuration that uses this module standalone.
-> 2. Re-plan after upgrading — Terraform will detach state-managed `azurerm_*` resources from the module and (re)attach the equivalent `azapi_resource` resources. Use [`terraform import` with `aztfmigrate`](https://learn.microsoft.com/en-us/azure/developer/terraform/aztfmigrate) to migrate existing state without recreating the Search Service.
-> 3. Note the new `resource_types`, `retry` and `timeouts` variables ([TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6), [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)) — all default sensibly so no input changes are required for typical usage.
-> 4. Output shapes have changed: `output.resource` and `output.private_endpoints` now wrap `azapi_resource` objects rather than `azurerm_search_service` / `azurerm_private_endpoint`. Downstream code should read `output.resource_id` (unchanged) where possible.
+> The module ships [`moved` blocks](./main.moved.tf) (Terraform 1.8+) that translate existing state in place — no destroy / re-create — for the search service, lock, role assignments, diagnostic settings, and the default (managed-DNS) private endpoint variant. After `terraform init -upgrade`, `terraform plan` should report `0 to add, 0 to change, 0 to destroy` for those resources.
+>
+> Three residual cases need a one-off manual step:
+>
+> 1. **Private DNS zone groups.** Pre-AzAPI these were an inline block on `azurerm_private_endpoint`; they are now a standalone `azapi_resource.private_endpoint_dns_zone_group["<key>"]`. Add a temporary `import` block per affected PE before the first `apply`:
+>    ```hcl
+>    import {
+>      to = module.search.azapi_resource.private_endpoint_dns_zone_group["<pe-key>"]
+>      id = "<private-endpoint-resource-id>/privateDnsZoneGroups/default"
+>    }
+>    
+```
+> 2. **ASG associations.** The standalone `azurerm_private_endpoint_application_security_group_association` resource is gone — ASGs are now inline on the PE body. Drop the old state entries (they are idempotent joins; the Azure-side association is untouched): `terraform state rm 'module.search.azurerm_private_endpoint_application_security_group_association.this["<key>"]'`.
+> 3. **Removed input `private_endpoints_manage_dns_zone_group`.** DNS zone group management is now per-PE: set `private_dns_zone_resource_ids = []` on a PE that should be unmanaged. Consumers who previously had this flag set to `false` must also `terraform state mv 'module.search.azurerm_private_endpoint.this_unmanaged_dns_zone_groups["<key>"]' 'module.search.azapi_resource.private_endpoint["<key>"]'` per PE before the first plan.
+>
+> For Terraform < 1.8 or for a tool-driven migration that also rewrites HCL, use [`aztfmigrate`](https://learn.microsoft.com/azure/developer/terraform/how-to-migrate-between-azurerm-and-azapi).
+>
+> Other notes:
+>
+> - New `resource_types`, `retry`, and `timeouts` variables ([TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6), [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)) — all default sensibly, no input changes required for typical usage.
+> - Output shapes: `output.resource` and `output.private_endpoints` now wrap `azapi_resource` objects rather than `azurerm_search_service` / `azurerm_private_endpoint`. Downstream code should read `output.resource_id` (unchanged) where possible.
 
 This module deploys an **Azure AI Search** service (`Microsoft.Search/searchServices`) along with the standard AVM cross-cutting interfaces it supports: `diagnostic_settings`, `role_assignments`, `lock`, `tags`, `managed_identities` (system- and user-assigned), `private_endpoints`, and `customer_managed_key`.
 
@@ -17,7 +34,7 @@ This module deploys an **Azure AI Search** service (`Microsoft.Search/searchServ
 - 🔐 **WAF-aligned defaults** — public network access enabled with `bypass = None`; lock and CMK opt-in.
 - 🆔 **Full managed identity support** — system-assigned, user-assigned, or both.
 - 🔑 **Service-level customer-managed keys** with optional user-assigned identity for Key Vault access.
-- 🌐 **Private endpoints** with optional in-module DNS zone group management (set `private_endpoints_manage_dns_zone_group = false` if DNS is managed by policy).
+- 🌐 **Private endpoints** with per-endpoint DNS zone group management.
 - 📊 **Diagnostic settings** to Log Analytics, storage, Event Hub or partner solution.
 - 🛡️ **AzAPI-first** — built entirely on `Microsoft.Search/searchServices@2025-05-01` plus the standard AzAPI interface resources. No AzureRM provider required.
 

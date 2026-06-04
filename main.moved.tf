@@ -6,8 +6,9 @@
 # addresses to their `azapi_resource` equivalents in place — no destroy /
 # re-create. They are no-ops once a workspace has already been migrated.
 #
-# Not every old address can be moved automatically (see MIGRATION.md for
-# private DNS zone groups and ASG associations).
+# Not every old address can be moved automatically — see the README for the
+# residual manual steps (DNS zone group import, ASG association state rm,
+# unmanaged-DNS state mv).
 # -----------------------------------------------------------------------------
 
 moved {
@@ -33,7 +34,7 @@ moved {
 # The pre-AzAPI module split private endpoints into two resources based on the
 # (now removed) `private_endpoints_manage_dns_zone_group` boolean. The default
 # (managed) variant is covered here; consumers who set the flag to `false`
-# need a one-off `terraform state mv` — see MIGRATION.md.
+# need a one-off `terraform state mv` — see _header.md / README.md.
 moved {
   from = azurerm_private_endpoint.this
   to   = azapi_resource.private_endpoint
