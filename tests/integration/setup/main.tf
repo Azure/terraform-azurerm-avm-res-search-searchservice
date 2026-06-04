@@ -30,7 +30,7 @@ data "azapi_client_config" "current" {}
 resource "azapi_resource" "resource_group" {
   type      = "Microsoft.Resources/resourceGroups@2024-11-01"
   name      = "rg-avm-search-int-${random_string.suffix.result}"
-  parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
+  parent_id = data.azapi_client_config.current.subscription_resource_id
   location  = var.location
 }
 

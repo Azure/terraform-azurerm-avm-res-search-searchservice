@@ -4,96 +4,30 @@
 
 This deploys the module in its simplest form.
 
-```hcl
-terraform {
-  required_version = ">= 1.9, < 2.0"
-
-  required_providers {
-    azapi = {
-      source  = "Azure/azapi"
-      version = "~> 2.8"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.5"
-    }
-  }
-}
-
-resource "random_string" "suffix" {
-  length  = 8
-  lower   = true
-  numeric = true
-  special = false
-  upper   = false
-}
-
-data "azapi_client_config" "current" {}
-
-resource "azapi_resource" "resource_group" {
-  location  = var.location
-  name      = "rg-avm-search-default-${random_string.suffix.result}"
-  parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
-  type      = "Microsoft.Resources/resourceGroups@2024-11-01"
-}
-
-# This is the module call.
-module "search_service" {
-  source = "../../"
-
-  location            = var.location
-  name                = "search-avm-${random_string.suffix.result}"
-  resource_group_name = azapi_resource.resource_group.name
-  enable_telemetry    = var.enable_telemetry
-  sku                 = "standard"
-}
-```
-
 <!-- markdownlint-disable MD033 -->
 ## Requirements
 
-The following requirements are needed by this module:
-
-- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
-
-- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.8)
-
-- <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9, < 2.0 |
+| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | ~> 2.8 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.5 |
 
 ## Resources
 
-The following resources are used by this module:
-
-- [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) (resource)
-- [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+| Name | Type |
+|------|------|
+| [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
+| [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
+| [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) | data source |
 
 <!-- markdownlint-disable MD013 -->
-## Required Inputs
+## Inputs
 
-No required inputs.
-
-## Optional Inputs
-
-The following input variables are optional (have default values):
-
-### <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry)
-
-Description: This variable controls whether or not telemetry is enabled for the module.  
-For more information see <https://aka.ms/avm/telemetryinfo>.  
-If it is set to false, then no telemetry will be collected.
-
-Type: `bool`
-
-Default: `true`
-
-### <a name="input_location"></a> [location](#input\_location)
-
-Description: The location for the resources.
-
-Type: `string`
-
-Default: `"westus"`
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry) | This variable controls whether or not telemetry is enabled for the module.<br/>For more information see <https://aka.ms/avm/telemetryinfo>.<br/>If it is set to false, then no telemetry will be collected. | `bool` | `true` | no |
+| <a name="input_location"></a> [location](#input\_location) | The location for the resources. | `string` | `"westus"` | no |
 
 ## Outputs
 
@@ -101,13 +35,9 @@ No outputs.
 
 ## Modules
 
-The following Modules are called:
-
-### <a name="module_search_service"></a> [search\_service](#module\_search\_service)
-
-Source: ../../
-
-Version:
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_search_service"></a> [search\_service](#module\_search\_service) | ../../ | n/a |
 
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection
