@@ -1,12 +1,14 @@
 # -----------------------------------------------------------------------------
-# Subscription / tenant context (used for resource group ID + role lookups)
+# Subscription / tenant context (used for role definition lookups).
 # -----------------------------------------------------------------------------
 data "azapi_client_config" "current" {}
 
-# Look up role definitions at the subscription scope so consumers can supply
-# either a full role definition resource ID or a friendly role name.
+# Single subscription-scoped lookup of role definitions, shared between the
+# root `role_assignments` variable and any per-private-endpoint role
+# assignments. Skipped when every assignment already supplies a full role
+# definition resource ID.
 data "azapi_resource_list" "role_definitions" {
-  count = length([for _, ra in var.role_assignments : ra if !strcontains(lower(ra.role_definition_id_or_name), lower(local.role_definition_resource_substring))]) > 0 ? 1 : 0
+  count = length(local.role_assignments_requiring_lookup) > 0 ? 1 : 0
 
   parent_id              = data.azapi_client_config.current.subscription_resource_id
   type                   = "Microsoft.Authorization/roleDefinitions@2022-04-01"
@@ -19,7 +21,7 @@ data "azapi_resource_list" "role_definitions" {
 resource "azapi_resource" "this" {
   location  = var.location
   name      = var.name
-  parent_id = local.resource_group_resource_id
+  parent_id = var.parent_id
   type      = var.resource_types.search_search_services
   body = {
     sku = {
@@ -63,141 +65,57 @@ resource "azapi_resource" "this" {
 }
 
 # -----------------------------------------------------------------------------
-# Resource lock (Microsoft.Authorization/locks)
+# Cross-cutting interface submodules (TFRMNFR1).
 # -----------------------------------------------------------------------------
-resource "azapi_resource" "lock" {
-  count = var.lock != null ? 1 : 0
 
-  name      = coalesce(var.lock.name, "lock-${var.lock.kind}")
+module "lock" {
+  source = "./modules/lock"
+  count  = var.lock == null ? 0 : 1
+
   parent_id = azapi_resource.this.id
-  type      = var.resource_types.authorization_locks
-  body = {
-    properties = {
-      level = var.lock.kind
-    }
+  kind      = var.lock.kind
+  name      = var.lock.name
+  resource_types = {
+    authorization_locks = var.resource_types.authorization_locks
   }
-  create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
-  response_export_values = []
-  retry                  = var.retry
-  update_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
+  enable_telemetry = var.enable_telemetry
+  retry            = var.retry
+  timeouts         = var.timeouts
 }
 
-# -----------------------------------------------------------------------------
-# Role assignments (Microsoft.Authorization/roleAssignments)
-# -----------------------------------------------------------------------------
-resource "random_uuid" "role_assignment" {
-  for_each = var.role_assignments
+module "role_assignment" {
+  source = "./modules/role_assignment"
+
+  parent_id = azapi_resource.this.id
+  role_assignments = {
+    for k, v in var.role_assignments : k => {
+      role_definition_resource_id            = local.role_definition_resource_ids[k]
+      principal_id                           = v.principal_id
+      principal_type                         = v.principal_type
+      description                            = v.description
+      condition                              = v.condition
+      condition_version                      = v.condition_version
+      delegated_managed_identity_resource_id = v.delegated_managed_identity_resource_id
+      skip_service_principal_aad_check       = v.skip_service_principal_aad_check
+    }
+  }
+  resource_types = {
+    authorization_role_assignments = var.resource_types.authorization_role_assignments
+  }
+  enable_telemetry = var.enable_telemetry
+  retry            = var.retry
+  timeouts         = var.timeouts
 }
 
-resource "azapi_resource" "role_assignment" {
-  for_each = var.role_assignments
+module "diagnostic_setting" {
+  source = "./modules/diagnostic_setting"
 
-  name      = random_uuid.role_assignment[each.key].result
-  parent_id = azapi_resource.this.id
-  type      = var.resource_types.authorization_role_assignments
-  body = {
-    properties = { for k, v in {
-      roleDefinitionId                   = local.role_definition_ids[each.key]
-      principalId                        = each.value.principal_id
-      principalType                      = each.value.principal_type
-      description                        = each.value.description
-      condition                          = each.value.condition
-      conditionVersion                   = each.value.condition_version
-      delegatedManagedIdentityResourceId = each.value.delegated_managed_identity_resource_id
-    } : k => v if v != null }
+  parent_id           = azapi_resource.this.id
+  diagnostic_settings = var.diagnostic_settings
+  resource_types = {
+    insights_diagnostic_settings = var.resource_types.insights_diagnostic_settings
   }
-  create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
-  response_export_values = []
-  # When assigning to a freshly-created service principal Azure AD replication
-  # may lag; retry on the relevant error message rather than sleeping.
-  retry = each.value.skip_service_principal_aad_check ? {
-    error_message_regex = concat(
-      try(var.retry.error_message_regex, []),
-      ["PrincipalNotFound", "does not exist in the directory"]
-    )
-    interval_seconds     = try(var.retry.interval_seconds, 10)
-    max_interval_seconds = try(var.retry.max_interval_seconds, 60)
-  } : var.retry
-  update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
-
-  # Role assignment names are server-allocated GUIDs in Azure; we generate one
-  # via random_uuid for new resources but ignore changes so that consumers
-  # migrating from the pre-AzAPI module versions keep their existing name
-  # (the GUID is carried through state by the `moved` block in main.moved.tf)
-  # rather than triggering a destructive replacement.
-  lifecycle {
-    ignore_changes = [name]
-  }
-}
-
-# -----------------------------------------------------------------------------
-# Diagnostic settings (Microsoft.Insights/diagnosticSettings)
-# -----------------------------------------------------------------------------
-resource "azapi_resource" "diagnostic_setting" {
-  for_each = var.diagnostic_settings
-
-  name      = coalesce(each.value.name, "diag-${var.name}")
-  parent_id = azapi_resource.this.id
-  type      = var.resource_types.insights_diagnostic_settings
-  body = {
-    properties = {
-      workspaceId                 = each.value.workspace_resource_id
-      storageAccountId            = each.value.storage_account_resource_id
-      eventHubAuthorizationRuleId = each.value.event_hub_authorization_rule_resource_id
-      eventHubName                = each.value.event_hub_name
-      marketplacePartnerId        = each.value.marketplace_partner_resource_id
-      logAnalyticsDestinationType = each.value.log_analytics_destination_type
-      logs = concat(
-        [for cat in each.value.log_categories : { category = cat, enabled = true }],
-        [for grp in each.value.log_groups : { categoryGroup = grp, enabled = true }],
-      )
-      metrics = [for cat in each.value.metric_categories : { category = cat, enabled = true }]
-    }
-  }
-  create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
-  response_export_values = []
-  retry                  = var.retry
-  update_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-
-  dynamic "timeouts" {
-    for_each = var.timeouts == null ? [] : [var.timeouts]
-
-    content {
-      create = timeouts.value.create
-      delete = timeouts.value.delete
-      read   = timeouts.value.read
-      update = timeouts.value.update
-    }
-  }
+  enable_telemetry = var.enable_telemetry
+  retry            = var.retry
+  timeouts         = var.timeouts
 }

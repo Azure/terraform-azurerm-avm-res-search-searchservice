@@ -69,23 +69,23 @@ run "defaults_apply" {
   }
 
   assert {
-    condition     = length(azapi_resource.lock) == 0
-    error_message = "Lock resource should not be created when var.lock is null."
+    condition     = length(module.lock) == 0
+    error_message = "Lock submodule should not be instantiated when var.lock is null."
   }
 
   assert {
-    condition     = length(azapi_resource.role_assignment) == 0
-    error_message = "Role assignment resources should not be created when var.role_assignments is empty."
+    condition     = length(module.role_assignment.resource) == 0
+    error_message = "Role assignment submodule should not be instantiated when var.role_assignments is empty."
   }
 
   assert {
-    condition     = length(azapi_resource.diagnostic_setting) == 0
-    error_message = "Diagnostic setting resources should not be created when var.diagnostic_settings is empty."
+    condition     = length(module.diagnostic_setting.resource) == 0
+    error_message = "Diagnostic setting submodule should not be instantiated when var.diagnostic_settings is empty."
   }
 
   assert {
-    condition     = length(azapi_resource.private_endpoint) == 0
-    error_message = "Private endpoint resources should not be created when var.private_endpoints is empty."
+    condition     = length(module.private_endpoint.resource) == 0
+    error_message = "Private endpoint submodule should not be instantiated when var.private_endpoints is empty."
   }
 
   assert {
@@ -177,22 +177,22 @@ run "lock_created" {
   }
 
   assert {
-    condition     = length(azapi_resource.lock) == 1
-    error_message = "Lock resource should be created when var.lock is set."
+    condition     = length(module.lock) == 1
+    error_message = "Lock submodule should be instantiated when var.lock is set."
   }
 
   assert {
-    condition     = azapi_resource.lock[0].type == "Microsoft.Authorization/locks@2020-05-01"
+    condition     = module.lock[0].resource.type == "Microsoft.Authorization/locks@2020-05-01"
     error_message = "Lock resource MUST use the AzAPI Microsoft.Authorization/locks type from var.resource_types (TFFR6)."
   }
 
   assert {
-    condition     = azapi_resource.lock[0].body.properties.level == "CanNotDelete"
+    condition     = module.lock[0].resource.body.properties.level == "CanNotDelete"
     error_message = "Lock level should be propagated from var.lock.kind."
   }
 
   assert {
-    condition     = azapi_resource.lock[0].name == "lock-CanNotDelete"
+    condition     = module.lock[0].resource.name == "lock-CanNotDelete"
     error_message = "Lock name should default to lock-<kind> when var.lock.name is null."
   }
 }
@@ -209,27 +209,27 @@ run "diagnostic_settings_created" {
   }
 
   assert {
-    condition     = length(azapi_resource.diagnostic_setting) == 1
-    error_message = "One diagnostic setting should be created."
+    condition     = length(module.diagnostic_setting.resource) == 1
+    error_message = "One diagnostic setting submodule instance should be created."
   }
 
   assert {
-    condition     = azapi_resource.diagnostic_setting["to_law"].type == "Microsoft.Insights/diagnosticSettings@2021-05-01-preview"
+    condition     = module.diagnostic_setting.resource["to_law"].type == "Microsoft.Insights/diagnosticSettings@2021-05-01-preview"
     error_message = "Diagnostic setting MUST use the AzAPI type from var.resource_types (TFFR6)."
   }
 
   assert {
-    condition     = azapi_resource.diagnostic_setting["to_law"].body.properties.workspaceId == "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.OperationalInsights/workspaces/law-test"
+    condition     = module.diagnostic_setting.resource["to_law"].body.properties.workspaceId == "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.OperationalInsights/workspaces/law-test"
     error_message = "workspaceId should be propagated from workspace_resource_id."
   }
 
   assert {
-    condition     = length(azapi_resource.diagnostic_setting["to_law"].body.properties.logs) == 1
+    condition     = length(module.diagnostic_setting.resource["to_law"].body.properties.logs) == 1
     error_message = "Default log_groups = ['allLogs'] should produce one log entry."
   }
 
   assert {
-    condition     = azapi_resource.diagnostic_setting["to_law"].body.properties.logs[0].categoryGroup == "allLogs"
+    condition     = module.diagnostic_setting.resource["to_law"].body.properties.logs[0].categoryGroup == "allLogs"
     error_message = "Default log entry should use categoryGroup = allLogs."
   }
 }
@@ -247,17 +247,17 @@ run "role_assignment_by_name" {
   }
 
   assert {
-    condition     = length(azapi_resource.role_assignment) == 1
-    error_message = "Role assignment should be created."
+    condition     = length(module.role_assignment.resource) == 1
+    error_message = "Role assignment submodule should be instantiated."
   }
 
   assert {
-    condition     = azapi_resource.role_assignment["reader"].type == "Microsoft.Authorization/roleAssignments@2022-04-01"
+    condition     = module.role_assignment.resource["reader"].type == "Microsoft.Authorization/roleAssignments@2022-04-01"
     error_message = "Role assignment MUST use the AzAPI roleAssignments type from var.resource_types (TFFR6)."
   }
 
   assert {
-    condition     = azapi_resource.role_assignment["reader"].body.properties.principalId == "00000000-0000-0000-0000-00000000abcd"
+    condition     = module.role_assignment.resource["reader"].body.properties.principalId == "00000000-0000-0000-0000-00000000abcd"
     error_message = "principalId should be propagated."
   }
 }
@@ -275,7 +275,7 @@ run "role_assignment_by_id" {
   }
 
   assert {
-    condition     = azapi_resource.role_assignment["reader"].body.properties.roleDefinitionId == "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7"
+    condition     = module.role_assignment.resource["reader"].body.properties.roleDefinitionId == "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7"
     error_message = "When a full role definition ID is supplied, it should be used verbatim."
   }
 }
@@ -294,23 +294,23 @@ run "private_endpoint_created" {
   }
 
   assert {
-    condition     = length(azapi_resource.private_endpoint) == 1
-    error_message = "One private endpoint should be created."
+    condition     = length(module.private_endpoint.resource) == 1
+    error_message = "One private endpoint submodule instance should be created."
   }
 
   assert {
-    condition     = azapi_resource.private_endpoint["primary"].type == "Microsoft.Network/privateEndpoints@2024-05-01"
+    condition     = module.private_endpoint.resource["primary"].type == "Microsoft.Network/privateEndpoints@2024-05-01"
     error_message = "Private endpoint MUST use the AzAPI privateEndpoints type from var.resource_types (TFFR6)."
   }
 
   assert {
-    condition     = azapi_resource.private_endpoint["primary"].body.properties.privateLinkServiceConnections[0].properties.groupIds[0] == "searchService"
+    condition     = module.private_endpoint.resource["primary"].body.properties.privateLinkServiceConnections[0].properties.groupIds[0] == "searchService"
     error_message = "Private endpoint groupId MUST be 'searchService'."
   }
 
   assert {
-    condition     = length(azapi_resource.private_endpoint_dns_zone_group) == 1
-    error_message = "DNS zone group should be created when private_endpoints_manage_dns_zone_group is true (default) and zones are supplied."
+    condition     = try(module.private_endpoint.dns_zone_group_resource_ids["primary"], null) != null
+    error_message = "DNS zone group should be created when private DNS zones are supplied."
   }
 
   assert {
@@ -323,18 +323,17 @@ run "private_endpoint_unmanaged_dns" {
   command = apply
 
   variables {
-    private_endpoints_manage_dns_zone_group = false
     private_endpoints = {
       primary = {
         subnet_resource_id            = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
-        private_dns_zone_resource_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/privateDnsZones/privatelink.search.windows.net"]
+        private_dns_zone_resource_ids = []
       }
     }
   }
 
   assert {
-    condition     = length(azapi_resource.private_endpoint_dns_zone_group) == 0
-    error_message = "DNS zone group MUST NOT be created when private_endpoints_manage_dns_zone_group is false."
+    condition     = try(module.private_endpoint.dns_zone_group_resource_ids["primary"], null) == null
+    error_message = "DNS zone group MUST NOT be created when private_dns_zone_resource_ids is empty."
   }
 }
 

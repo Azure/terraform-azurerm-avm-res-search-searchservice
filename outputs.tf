@@ -4,8 +4,16 @@ output "name" {
 }
 
 output "private_endpoints" {
-  description = "A map of private endpoints. The map key is the supplied input to `var.private_endpoints`. The map value is the full `azapi_resource` object for the private endpoint."
-  value       = azapi_resource.private_endpoint
+  description = "A map keyed by `var.private_endpoints` key. Each value is `{ resource_id, dns_zone_group_resource_id, lock_resource_id, role_assignment_resource_ids, resource }` for that PE."
+  value = {
+    for k, v in module.private_endpoint.resource : k => {
+      resource                     = v
+      resource_id                  = v.id
+      dns_zone_group_resource_id   = try(module.private_endpoint.dns_zone_group_resource_ids[k], null)
+      lock_resource_id             = try(module.private_endpoint.lock_resource_ids[k], null)
+      role_assignment_resource_ids = { for fk, fid in module.private_endpoint.role_assignment_resource_ids : split("-", fk, )[1] => fid if startswith(fk, "${k}-") }
+    }
+  }
 }
 
 output "resource" {

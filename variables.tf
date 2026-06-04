@@ -329,13 +329,6 @@ DESCRIPTION
   }
 }
 
-variable "private_endpoints_manage_dns_zone_group" {
-  type        = bool
-  default     = true
-  description = "(Optional) Whether this module manages the private DNS zone groups. If `false`, you must manage them externally (for example via Azure Policy)."
-  nullable    = false
-}
-
 variable "public_network_access_enabled" {
   type        = bool
   default     = true

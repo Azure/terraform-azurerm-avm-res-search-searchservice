@@ -69,23 +69,32 @@ locals {
     ipRules = var.allowed_ips == null ? [] : [for ip in var.allowed_ips : { value = ip }]
   }
   # ---------------------------------------------------------------------------
-  # Flattened ASG associations for private endpoints
+  # Role definition resolution — shared across the root `role_assignments`
+  # and any per-private-endpoint role assignments.
   # ---------------------------------------------------------------------------
-  private_endpoint_application_security_groups = {
-    for pe_k, pe_v in var.private_endpoints : pe_k => [
-      for _, asg_id in pe_v.application_security_group_associations : { id = asg_id }
-    ]
+  # Flat key→assignment view of every role assignment in the module (both root
+  # and per-PE). Keys are guaranteed unique because PE-level keys are prefixed
+  # with the PE key.
+  all_role_assignments = merge(
+    var.role_assignments,
+    merge([
+      for pe_k, pe_v in var.private_endpoints : {
+        for ra_k, ra_v in pe_v.role_assignments :
+        "${pe_k}-${ra_k}" => ra_v
+      }
+    ]...)
+  )
+  # Assignments where `role_definition_id_or_name` is a friendly name and so
+  # require a subscription-scope role definition lookup.
+  role_assignments_requiring_lookup = {
+    for k, ra in local.all_role_assignments :
+    k => ra
+    if !strcontains(lower(ra.role_definition_id_or_name), lower(local.role_definition_resource_substring))
   }
-  # ---------------------------------------------------------------------------
-  # Resource group ID (parent_id for top-level resources)
-  # ---------------------------------------------------------------------------
-  resource_group_resource_id = var.parent_id
-  # Build per-assignment role definition resource IDs.
-  # If the input is already a full role definition resource ID, use it as-is;
-  # otherwise look it up via the azapi_resource_list data source at subscription scope.
-  role_definition_ids = {
-    for key, ra in var.role_assignments :
-    key => (
+  # Resolved full role definition resource ID per assignment key.
+  role_definition_resource_ids = {
+    for k, ra in local.all_role_assignments :
+    k => (
       strcontains(lower(ra.role_definition_id_or_name), lower(local.role_definition_resource_substring))
       ? ra.role_definition_id_or_name
       : try(data.azapi_resource_list.role_definitions[0].output.value[
@@ -93,9 +102,6 @@ locals {
       ].id, ra.role_definition_id_or_name)
     )
   }
-  # ---------------------------------------------------------------------------
-  # Role definition substring detection
-  # ---------------------------------------------------------------------------
   role_definition_resource_substring = "/providers/Microsoft.Authorization/roleDefinitions"
   # ---------------------------------------------------------------------------
   # Properties body for the search service.
