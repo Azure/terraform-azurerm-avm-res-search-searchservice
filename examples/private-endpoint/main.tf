@@ -2,127 +2,110 @@ terraform {
   required_version = ">= 1.9, < 2.0"
 
   required_providers {
-    azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~>4.0"
+    azapi = {
+      source  = "Azure/azapi"
+      version = "~> 2.8"
     }
     random = {
       source  = "hashicorp/random"
-      version = "~>3.5.0"
+      version = "~> 3.5"
     }
   }
 }
-provider "azurerm" {
-  features {}
-}
 
 locals {
-  core_services_vnet_subnets = cidrsubnets("10.0.0.0/22", 6, 2, 4, 3)
-  # name                 = var.name
-  subnet_address_space = [local.core_services_vnet_subnets[3]]
+  pe_subnet_prefix   = cidrsubnet(local.vnet_address_space, 4, 0)
+  vnet_address_space = "10.0.0.0/22"
 }
 
-## Section to provide a random Azure region for the resource group
-# This allows us to randomize the region for the resource group.
-module "regions" {
-  source  = "Azure/regions/azurerm"
-  version = "~> 0.3"
+resource "random_string" "suffix" {
+  length  = 8
+  lower   = true
+  numeric = true
+  special = false
+  upper   = false
 }
 
-# This allows us to randomize the region for the resource group.
-resource "random_integer" "region_index" {
-  max = length(module.regions.regions) - 1
-  min = 0
-}
-## End of section to provide a random Azure region for the resource group
+data "azapi_client_config" "current" {}
 
-# This ensures we have unique CAF compliant names for our resources.
-module "naming" {
-  source  = "Azure/naming/azurerm"
-  version = "~> 0.3"
+resource "azapi_resource" "resource_group" {
+  location  = var.location
+  name      = "rg-avm-search-pe-${random_string.suffix.result}"
+  parent_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
+  type      = "Microsoft.Resources/resourceGroups@2024-11-01"
 }
 
-# This is required for resource modules
-resource "azurerm_resource_group" "this" {
-  location = var.location
-  name     = module.naming.resource_group.name_unique
+resource "azapi_resource" "virtual_network" {
+  location  = var.location
+  name      = "vnet-avm-search-${random_string.suffix.result}"
+  parent_id = azapi_resource.resource_group.id
+  type      = "Microsoft.Network/virtualNetworks@2024-05-01"
+  body = {
+    properties = {
+      addressSpace = {
+        addressPrefixes = [local.vnet_address_space]
+      }
+      subnets = [
+        {
+          name = "snet-aisearch-pe"
+          properties = {
+            addressPrefixes                = [local.pe_subnet_prefix]
+            privateEndpointNetworkPolicies = "Enabled"
+          }
+        }
+      ]
+    }
+  }
+  response_export_values = ["properties.subnets"]
+  tags                   = var.tags
 }
 
-#VNET for private endpoint
-resource "azurerm_virtual_network" "this" {
-  location            = azurerm_resource_group.this.location
-  name                = module.naming.virtual_network.name_unique
-  resource_group_name = azurerm_resource_group.this.name
-  address_space       = ["10.0.0.0/22"]
-  tags                = var.tags
+resource "azapi_resource" "private_dns_zone" {
+  location  = "global"
+  name      = "privatelink.search.windows.net"
+  parent_id = azapi_resource.resource_group.id
+  type      = "Microsoft.Network/privateDnsZones@2024-06-01"
+  body = {
+    properties = {}
+  }
+  tags = var.tags
 }
 
-#Subnet for private endpoint
-resource "azurerm_subnet" "this" {
-  address_prefixes                  = local.subnet_address_space
-  name                              = "aisearch-subnet"
-  resource_group_name               = azurerm_resource_group.this.name
-  virtual_network_name              = azurerm_virtual_network.this.name
-  private_endpoint_network_policies = "Enabled"
+resource "azapi_resource" "private_dns_zone_link" {
+  location  = "global"
+  name      = "${azapi_resource.virtual_network.name}-link"
+  parent_id = azapi_resource.private_dns_zone.id
+  type      = "Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01"
+  body = {
+    properties = {
+      registrationEnabled = false
+      virtualNetwork = {
+        id = azapi_resource.virtual_network.id
+      }
+    }
+  }
+  tags = var.tags
 }
 
-
-# Create Private DNS Zone for Search Service
-resource "azurerm_private_dns_zone" "this" {
-  name                = "privatelink.search.windows.net"
-  resource_group_name = azurerm_resource_group.this.name
-  tags                = var.tags
-}
-
-# Create Private DNS Zone Virtual Network Link
-resource "azurerm_private_dns_zone_virtual_network_link" "this" {
-  name                  = "${azurerm_virtual_network.this.name}-link"
-  private_dns_zone_name = azurerm_private_dns_zone.this.name
-  resource_group_name   = azurerm_resource_group.this.name
-  virtual_network_id    = azurerm_virtual_network.this.id
-  tags                  = var.tags
-}
-
-# This is the module call
-# Do not specify location here due to the randomization above.
-# Leaving location as `null` will cause the module to use the resource group location
-# with a data source.
 module "search_service" {
   source = "../../"
 
-  # source             = "Azure/avm-res-search-searchservice/azurerm"
-  # ...
-  location                     = azurerm_resource_group.this.location
-  name                         = module.naming.search_service.name_unique
-  resource_group_name          = azurerm_resource_group.this.name
+  location                     = var.location
+  name                         = "search-avm-${random_string.suffix.result}"
+  resource_group_name          = azapi_resource.resource_group.name
   allowed_ips                  = var.azure_ai_allowed_ips
-  enable_telemetry             = var.enable_telemetry # see variables.tf
+  enable_telemetry             = var.enable_telemetry
   local_authentication_enabled = var.local_authentication_enabled
   managed_identities = {
     system_assigned = true
   }
   private_endpoints = {
     primary = {
-      private_dns_zone_resource_ids = [azurerm_private_dns_zone.this.id]
-      private_dns_zone_name         = azurerm_private_dns_zone.this.name
-      subnet_resource_id            = azurerm_subnet.this.id
+      subnet_resource_id            = azapi_resource.virtual_network.output.properties.subnets[0].id
+      private_dns_zone_resource_ids = [azapi_resource.private_dns_zone.id]
+      private_dns_zone_group_name   = "default"
     }
   }
   public_network_access_enabled = false
   sku                           = "standard"
 }
-
-resource "azurerm_private_dns_a_record" "this" {
-  for_each = module.search_service.private_endpoints
-
-  name                = module.search_service.resource.name
-  records             = [each.value.private_service_connection[0].private_ip_address]
-  resource_group_name = azurerm_resource_group.this.name
-  ttl                 = 300
-  zone_name           = azurerm_private_dns_zone.this.name
-  tags                = var.tags
-}
-
-
-
-

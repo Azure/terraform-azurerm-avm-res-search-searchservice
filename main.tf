@@ -1,90 +1,195 @@
-# required AVM resources interfaces
-# data "azurerm_resource_group" "parent" {
-#   count = var.location == null ? 1 : 0
+# -----------------------------------------------------------------------------
+# Subscription / tenant context (used for resource group ID + role lookups)
+# -----------------------------------------------------------------------------
+data "azapi_client_config" "current" {}
 
-#   name = var.resource_group_name
-# }
-# required AVM resources interfaces
-resource "azurerm_management_lock" "this" {
+# Look up role definitions at the subscription scope so consumers can supply
+# either a full role definition resource ID or a friendly role name.
+data "azapi_resource_list" "role_definitions" {
+  count = length([for _, ra in var.role_assignments : ra if !strcontains(lower(ra.role_definition_id_or_name), lower(local.role_definition_resource_substring))]) > 0 ? 1 : 0
+
+  parent_id              = data.azapi_client_config.current.subscription_resource_id
+  type                   = "Microsoft.Authorization/roleDefinitions@2022-04-01"
+  response_export_values = ["value"]
+}
+
+# -----------------------------------------------------------------------------
+# Primary resource: Azure AI Search service
+# -----------------------------------------------------------------------------
+resource "azapi_resource" "this" {
+  location  = var.location
+  name      = var.name
+  parent_id = local.resource_group_resource_id
+  type      = var.resource_types.search_search_services
+  body = {
+    sku = {
+      name = var.sku
+    }
+    identity   = local.identity_body
+    properties = local.search_service_properties
+  }
+  create_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  delete_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  read_headers   = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  response_export_values = [
+    "identity.principalId",
+    "identity.tenantId",
+    "properties.endpoint",
+  ]
+  retry = var.retry
+  # The AzAPI provider's embedded schema for `Microsoft.Search/searchServices`
+  # does not yet recognise the preview `serviceLevelEncryptionKey` field. When
+  # the consumer has opted into service-level CMK (which already requires a
+  # preview API version via `var.resource_types.search_search_services`) we
+  # bypass embedded schema validation; Azure Resource Manager still validates
+  # the body server-side.
+  schema_validation_enabled = local.cmk_service_level_key == null
+  tags                      = var.tags
+  update_headers            = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
+
+    content {
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Resource lock (Microsoft.Authorization/locks)
+# -----------------------------------------------------------------------------
+resource "azapi_resource" "lock" {
   count = var.lock != null ? 1 : 0
 
-  lock_level = var.lock.kind
-  name       = coalesce(var.lock.name, "lock-${var.lock.kind}")
-  scope      = azurerm_search_service.this.id
+  name      = coalesce(var.lock.name, "lock-${var.lock.kind}")
+  parent_id = azapi_resource.this.id
+  type      = var.resource_types.authorization_locks
+  body = {
+    properties = {
+      level = var.lock.kind
+      notes = "Lock managed by terraform-azurerm-avm-res-search-searchservice."
+    }
+  }
+  create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  response_export_values = []
+  retry                  = var.retry
+  update_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
+
+    content {
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
+    }
+  }
 }
 
-resource "azurerm_role_assignment" "this" {
+# -----------------------------------------------------------------------------
+# Role assignments (Microsoft.Authorization/roleAssignments)
+# -----------------------------------------------------------------------------
+resource "random_uuid" "role_assignment" {
+  for_each = var.role_assignments
+}
+
+resource "azapi_resource" "role_assignment" {
   for_each = var.role_assignments
 
-  principal_id                           = each.value.principal_id
-  scope                                  = azurerm_search_service.this.id
-  condition                              = each.value.condition
-  condition_version                      = each.value.condition_version
-  delegated_managed_identity_resource_id = each.value.delegated_managed_identity_resource_id
-  description                            = each.value.description
-  role_definition_id                     = strcontains(lower(each.value.role_definition_id_or_name), lower(local.role_definition_resource_substring)) ? each.value.role_definition_id_or_name : null
-  role_definition_name                   = strcontains(lower(each.value.role_definition_id_or_name), lower(local.role_definition_resource_substring)) ? null : each.value.role_definition_id_or_name
-  skip_service_principal_aad_check       = each.value.skip_service_principal_aad_check
+  name      = random_uuid.role_assignment[each.key].result
+  parent_id = azapi_resource.this.id
+  type      = var.resource_types.authorization_role_assignments
+  body = {
+    properties = {
+      roleDefinitionId                   = local.role_definition_ids[each.key]
+      principalId                        = each.value.principal_id
+      principalType                      = each.value.principal_type
+      description                        = each.value.description
+      condition                          = each.value.condition
+      conditionVersion                   = each.value.condition_version
+      delegatedManagedIdentityResourceId = each.value.delegated_managed_identity_resource_id
+    }
+  }
+  create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  response_export_values = []
+  # When assigning to a freshly-created service principal Azure AD replication
+  # may lag; retry on the relevant error message rather than sleeping.
+  retry = each.value.skip_service_principal_aad_check ? {
+    error_message_regex = concat(
+      try(var.retry.error_message_regex, []),
+      ["PrincipalNotFound", "does not exist in the directory"]
+    )
+    interval_seconds     = try(var.retry.interval_seconds, 10)
+    max_interval_seconds = try(var.retry.max_interval_seconds, 60)
+  } : var.retry
+  update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
+
+    content {
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
+    }
+  }
+
+  # Role definition lookups can return name → id mappings that change between
+  # plans; replacing on principal/role change is intentional.
+  lifecycle {
+    replace_triggered_by = [random_uuid.role_assignment[each.key]]
+  }
 }
 
-resource "azurerm_monitor_diagnostic_setting" "this" {
+# -----------------------------------------------------------------------------
+# Diagnostic settings (Microsoft.Insights/diagnosticSettings)
+# -----------------------------------------------------------------------------
+resource "azapi_resource" "diagnostic_setting" {
   for_each = var.diagnostic_settings
 
-  name                           = each.value.name != null ? each.value.name : "diag-${var.name}"
-  target_resource_id             = azurerm_search_service.this.id
-  eventhub_authorization_rule_id = each.value.event_hub_authorization_rule_resource_id
-  eventhub_name                  = each.value.event_hub_name
-  log_analytics_destination_type = each.value.log_analytics_destination_type
-  log_analytics_workspace_id     = each.value.workspace_resource_id
-  partner_solution_id            = each.value.marketplace_partner_resource_id
-  storage_account_id             = each.value.storage_account_resource_id
-
-  dynamic "enabled_log" {
-    for_each = each.value.log_categories
-
-    content {
-      category = enabled_log.value
+  name      = coalesce(each.value.name, "diag-${var.name}")
+  parent_id = azapi_resource.this.id
+  type      = var.resource_types.insights_diagnostic_settings
+  body = {
+    properties = {
+      workspaceId                 = each.value.workspace_resource_id
+      storageAccountId            = each.value.storage_account_resource_id
+      eventHubAuthorizationRuleId = each.value.event_hub_authorization_rule_resource_id
+      eventHubName                = each.value.event_hub_name
+      marketplacePartnerId        = each.value.marketplace_partner_resource_id
+      logAnalyticsDestinationType = each.value.log_analytics_destination_type
+      logs = concat(
+        [for cat in each.value.log_categories : { category = cat, enabled = true }],
+        [for grp in each.value.log_groups : { categoryGroup = grp, enabled = true }],
+      )
+      metrics = [for cat in each.value.metric_categories : { category = cat, enabled = true }]
     }
   }
-  dynamic "enabled_log" {
-    for_each = each.value.log_groups
+  create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  response_export_values = []
+  retry                  = var.retry
+  update_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
 
     content {
-      category_group = enabled_log.value
-    }
-  }
-  dynamic "metric" {
-    for_each = each.value.metric_categories
-
-    content {
-      category = metric.value
-    }
-  }
-}
-
-resource "azurerm_search_service" "this" {
-  location                                 = var.location
-  name                                     = var.name
-  resource_group_name                      = var.resource_group_name
-  sku                                      = var.sku
-  allowed_ips                              = var.allowed_ips
-  authentication_failure_mode              = var.authentication_failure_mode
-  customer_managed_key_enforcement_enabled = var.customer_managed_key_enforcement_enabled
-  hosting_mode                             = var.hosting_mode
-  local_authentication_enabled             = var.local_authentication_enabled
-  network_rule_bypass_option               = var.network_rule_bypass_option
-  partition_count                          = var.partition_count
-  public_network_access_enabled            = var.public_network_access_enabled
-  replica_count                            = var.replica_count
-  semantic_search_sku                      = var.semantic_search_sku
-  tags                                     = var.tags
-
-  dynamic "identity" {
-    for_each = (var.managed_identities.system_assigned || length(var.managed_identities.user_assigned_resource_ids) > 0) ? { this = var.managed_identities } : {}
-
-    content {
-      # only SystemAssigned is supported
-      type = identity.value.system_assigned ? "SystemAssigned" : null
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
     }
   }
 }
