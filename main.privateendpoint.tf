@@ -12,7 +12,7 @@ locals {
   }
   private_endpoint_parent_ids = {
     for pe_k, pe_v in var.private_endpoints :
-    pe_k => coalesce(pe_v.resource_group_resource_id, local.resource_group_resource_id)
+    pe_k => pe_v.resource_group_name == null ? local.resource_group_resource_id : "/subscriptions/${data.azapi_client_config.current.subscription_id}/resourceGroups/${pe_v.resource_group_name}"
   }
 }
 
@@ -34,7 +34,7 @@ resource "azapi_resource" "private_endpoint" {
           name = coalesce(each.value.private_service_connection_name, "psc-${var.name}")
           properties = {
             privateLinkServiceId = azapi_resource.this.id
-            groupIds             = ["searchService"]
+            groupIds             = [coalesce(each.value.subresource_name, "searchService")]
           }
         }
       ]
@@ -42,8 +42,8 @@ resource "azapi_resource" "private_endpoint" {
         for _, ipc in each.value.ip_configurations : {
           name = ipc.name
           properties = {
-            groupId          = "searchService"
-            memberName       = "searchService"
+            groupId          = coalesce(each.value.subresource_name, "searchService")
+            memberName       = coalesce(ipc.member_name, coalesce(each.value.subresource_name, "searchService"))
             privateIPAddress = ipc.private_ip_address
           }
         }
@@ -182,7 +182,7 @@ resource "random_uuid" "private_endpoint_role_assignment" {
 resource "azapi_resource" "private_endpoint_role_assignment" {
   for_each = local.private_endpoint_role_assignments
 
-  name      = random_uuid.private_endpoint_role_assignment[each.key].result
+  name      = coalesce(each.value.name, random_uuid.private_endpoint_role_assignment[each.key].result)
   parent_id = azapi_resource.private_endpoint[each.value.pe_key].id
   type      = var.resource_types.authorization_role_assignments
   body = {
