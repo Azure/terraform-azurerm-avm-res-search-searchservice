@@ -92,7 +92,7 @@ module "search_service" {
 
   location                     = var.location
   name                         = "search-avm-${random_string.suffix.result}"
-  resource_group_name          = azapi_resource.resource_group.name
+  parent_id                    = azapi_resource.resource_group.id
   allowed_ips                  = var.azure_ai_allowed_ips
   enable_telemetry             = var.enable_telemetry
   local_authentication_enabled = var.local_authentication_enabled

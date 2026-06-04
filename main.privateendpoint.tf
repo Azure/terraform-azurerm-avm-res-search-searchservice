@@ -12,7 +12,7 @@ locals {
   }
   private_endpoint_parent_ids = {
     for pe_k, pe_v in var.private_endpoints :
-    pe_k => pe_v.resource_group_name == null ? local.resource_group_resource_id : "/subscriptions/${data.azapi_client_config.current.subscription_id}/resourceGroups/${pe_v.resource_group_name}"
+    pe_k => local.resource_group_resource_id
   }
 }
 

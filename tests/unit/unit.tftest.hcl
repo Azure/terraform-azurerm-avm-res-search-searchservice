@@ -35,9 +35,9 @@ mock_provider "modtm" {}
 mock_provider "random" {}
 
 variables {
-  location            = "eastus"
-  name                = "search-unit-test"
-  resource_group_name = "rg-unit-test"
+  location  = "eastus"
+  name      = "search-unit-test"
+  parent_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-unit-test"
 }
 
 run "defaults_apply" {

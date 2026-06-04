@@ -26,10 +26,10 @@ run "minimal_search_service" {
   command = apply
 
   variables {
-    location            = var.location
-    name                = run.setup.search_service_name
-    resource_group_name = run.setup.resource_group_name
-    sku                 = "basic"
+    location  = var.location
+    name      = run.setup.search_service_name
+    parent_id = run.setup.resource_group_resource_id
+    sku       = "basic"
     tags = {
       environment = "integration-test"
       module      = "avm-res-search-searchservice"
@@ -58,10 +58,10 @@ run "with_system_assigned_identity" {
   command = apply
 
   variables {
-    location            = var.location
-    name                = run.setup.search_service_name
-    resource_group_name = run.setup.resource_group_name
-    sku                 = "basic"
+    location  = var.location
+    name      = run.setup.search_service_name
+    parent_id = run.setup.resource_group_resource_id
+    sku       = "basic"
 
     managed_identities = {
       system_assigned = true
@@ -85,7 +85,7 @@ run "public_network_access_disabled" {
   variables {
     location                      = var.location
     name                          = run.setup.search_service_name
-    resource_group_name           = run.setup.resource_group_name
+    parent_id                     = run.setup.resource_group_resource_id
     sku                           = "basic"
     public_network_access_enabled = false
   }

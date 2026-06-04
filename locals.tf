@@ -79,7 +79,7 @@ locals {
   # ---------------------------------------------------------------------------
   # Resource group ID (parent_id for top-level resources)
   # ---------------------------------------------------------------------------
-  resource_group_resource_id = "/subscriptions/${data.azapi_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}"
+  resource_group_resource_id = var.parent_id
   # Build per-assignment role definition resource IDs.
   # If the input is already a full role definition resource ID, use it as-is;
   # otherwise look it up via the azapi_resource_list data source at subscription scope.

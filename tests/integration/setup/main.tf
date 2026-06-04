@@ -34,8 +34,8 @@ resource "azapi_resource" "resource_group" {
   location  = var.location
 }
 
-output "resource_group_name" {
-  value = azapi_resource.resource_group.name
+output "resource_group_resource_id" {
+  value = azapi_resource.resource_group.id
 }
 
 output "search_service_name" {
