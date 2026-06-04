@@ -60,6 +60,15 @@ variable "customer_managed_key" {
 - `user_assigned_identity` - (Optional) The user-assigned identity to use when accessing the Key Vault. If `null`, the Search Service system-assigned identity is used. Must be one of the identities passed via `managed_identities.user_assigned_resource_ids`.
   - `resource_id` - (Required) The resource ID of the user-assigned managed identity.
 DESCRIPTION
+
+  validation {
+    condition     = var.customer_managed_key == null || can(provider::azapi::parse_resource_id("Microsoft.KeyVault/vaults", try(var.customer_managed_key.key_vault_resource_id, "")))
+    error_message = "`customer_managed_key.key_vault_resource_id` must be a valid Azure Key Vault resource ID."
+  }
+  validation {
+    condition     = try(var.customer_managed_key.user_assigned_identity, null) == null || can(provider::azapi::parse_resource_id("Microsoft.ManagedIdentity/userAssignedIdentities", try(var.customer_managed_key.user_assigned_identity.resource_id, "")))
+    error_message = "`customer_managed_key.user_assigned_identity.resource_id` must be a valid user-assigned managed identity resource ID."
+  }
 }
 
 variable "customer_managed_key_enforcement_enabled" {
@@ -108,6 +117,27 @@ DESCRIPTION
       v.workspace_resource_id != null || v.storage_account_resource_id != null || v.event_hub_authorization_rule_resource_id != null || v.marketplace_partner_resource_id != null
     ])
     error_message = "At least one of workspace_resource_id, storage_account_resource_id, event_hub_authorization_rule_resource_id, or marketplace_partner_resource_id must be set."
+  }
+  validation {
+    condition = alltrue([
+      for _, v in var.diagnostic_settings :
+      v.workspace_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.OperationalInsights/workspaces", v.workspace_resource_id))
+    ])
+    error_message = "Each `diagnostic_settings[*].workspace_resource_id` must be a valid Log Analytics workspace resource ID, or `null`."
+  }
+  validation {
+    condition = alltrue([
+      for _, v in var.diagnostic_settings :
+      v.storage_account_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.Storage/storageAccounts", v.storage_account_resource_id))
+    ])
+    error_message = "Each `diagnostic_settings[*].storage_account_resource_id` must be a valid Storage Account resource ID, or `null`."
+  }
+  validation {
+    condition = alltrue([
+      for _, v in var.diagnostic_settings :
+      v.event_hub_authorization_rule_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.EventHub/namespaces/authorizationRules", v.event_hub_authorization_rule_resource_id))
+    ])
+    error_message = "Each `diagnostic_settings[*].event_hub_authorization_rule_resource_id` must be a valid Event Hub authorization rule resource ID, or `null`."
   }
 }
 
@@ -171,6 +201,14 @@ Controls the Managed Identity configuration on the Search Service.
 - `user_assigned_resource_ids` - (Optional) A set of user-assigned managed identity resource IDs to assign.
 DESCRIPTION
   nullable    = false
+
+  validation {
+    condition = alltrue([
+      for id in try(var.managed_identities.user_assigned_resource_ids, []) :
+      can(provider::azapi::parse_resource_id("Microsoft.ManagedIdentity/userAssignedIdentities", id))
+    ])
+    error_message = "Each entry in `managed_identities.user_assigned_resource_ids` must be a valid user-assigned managed identity resource ID."
+  }
 }
 
 variable "network_rule_bypass_option" {
@@ -247,6 +285,41 @@ A map of private endpoints to create on the Search Service. The map key is delib
   - `private_ip_address` - (Required) The static private IP address to assign.
 DESCRIPTION
   nullable    = false
+
+  validation {
+    condition = alltrue([
+      for _, v in var.private_endpoints :
+      can(provider::azapi::parse_resource_id("Microsoft.Network/virtualNetworks/subnets", v.subnet_resource_id))
+    ])
+    error_message = "Each `private_endpoints[*].subnet_resource_id` must be a valid subnet resource ID."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for _, v in var.private_endpoints : [
+        for id in v.private_dns_zone_resource_ids :
+        can(provider::azapi::parse_resource_id("Microsoft.Network/privateDnsZones", id))
+      ]
+    ]))
+    error_message = "Each entry in `private_endpoints[*].private_dns_zone_resource_ids` must be a valid Private DNS Zone resource ID."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for _, v in var.private_endpoints : [
+        for _, id in v.application_security_group_associations :
+        can(provider::azapi::parse_resource_id("Microsoft.Network/applicationSecurityGroups", id))
+      ]
+    ]))
+    error_message = "Each value in `private_endpoints[*].application_security_group_associations` must be a valid Application Security Group resource ID."
+  }
+  validation {
+    condition = alltrue(flatten([
+      for _, v in var.private_endpoints : [
+        for _, ra in v.role_assignments :
+        ra.delegated_managed_identity_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.ManagedIdentity/userAssignedIdentities", ra.delegated_managed_identity_resource_id))
+      ]
+    ]))
+    error_message = "Each `private_endpoints[*].role_assignments[*].delegated_managed_identity_resource_id` must be a valid user-assigned managed identity resource ID, or `null`."
+  }
 }
 
 variable "private_endpoints_manage_dns_zone_group" {
@@ -341,6 +414,14 @@ A map of role assignments to create on the Search Service. The map key is delibe
 > Note: when `role_definition_id_or_name` is a name (not a full resource ID) the module resolves it via `Microsoft.Authorization/roleDefinitions` data lookup at the subscription scope.
 DESCRIPTION
   nullable    = false
+
+  validation {
+    condition = alltrue([
+      for _, ra in var.role_assignments :
+      ra.delegated_managed_identity_resource_id == null || can(provider::azapi::parse_resource_id("Microsoft.ManagedIdentity/userAssignedIdentities", ra.delegated_managed_identity_resource_id))
+    ])
+    error_message = "Each `role_assignments[*].delegated_managed_identity_resource_id` must be a valid user-assigned managed identity resource ID, or `null`."
+  }
 }
 
 variable "semantic_search_sku" {
