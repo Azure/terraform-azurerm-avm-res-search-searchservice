@@ -30,7 +30,7 @@ data "azapi_client_config" "current" {}
 resource "azapi_resource" "resource_group" {
   type      = "Microsoft.Resources/resourceGroups@2024-11-01"
   name      = "rg-avm-search-int-${random_string.suffix.result}"
-  parent_id = data.azapi_client_config.current.subscription_resource_id
+  parent_id = "/subscriptions/${coalesce(data.azapi_client_config.current.subscription_id, "00000000-0000-0000-0000-000000000000")}"
   location  = var.location
 }
 

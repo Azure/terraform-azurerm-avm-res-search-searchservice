@@ -4,214 +4,49 @@
 
 This deploys the module with a private link.
 
-```hcl
-terraform {
-  required_version = ">= 1.9, < 2.0"
-
-  required_providers {
-    azapi = {
-      source  = "Azure/azapi"
-      version = "~> 2.8"
-    }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.5"
-    }
-  }
-}
-
-locals {
-  pe_subnet_prefix   = cidrsubnet(local.vnet_address_space, 4, 0)
-  vnet_address_space = "10.0.0.0/22"
-}
-
-resource "random_string" "suffix" {
-  length  = 8
-  lower   = true
-  numeric = true
-  special = false
-  upper   = false
-}
-
-data "azapi_client_config" "current" {}
-
-resource "azapi_resource" "resource_group" {
-  location  = var.location
-  name      = "rg-avm-search-pe-${random_string.suffix.result}"
-  parent_id = data.azapi_client_config.current.subscription_resource_id
-  type      = "Microsoft.Resources/resourceGroups@2024-11-01"
-}
-
-resource "azapi_resource" "virtual_network" {
-  location  = var.location
-  name      = "vnet-avm-search-${random_string.suffix.result}"
-  parent_id = azapi_resource.resource_group.id
-  type      = "Microsoft.Network/virtualNetworks@2024-05-01"
-  body = {
-    properties = {
-      addressSpace = {
-        addressPrefixes = [local.vnet_address_space]
-      }
-      subnets = [
-        {
-          name = "snet-aisearch-pe"
-          properties = {
-            addressPrefixes                = [local.pe_subnet_prefix]
-            privateEndpointNetworkPolicies = "Enabled"
-          }
-        }
-      ]
-    }
-  }
-  response_export_values = ["properties.subnets"]
-  tags                   = var.tags
-}
-
-resource "azapi_resource" "private_dns_zone" {
-  location  = "global"
-  name      = "privatelink.search.windows.net"
-  parent_id = azapi_resource.resource_group.id
-  type      = "Microsoft.Network/privateDnsZones@2024-06-01"
-  body = {
-    properties = {}
-  }
-  tags = var.tags
-}
-
-resource "azapi_resource" "private_dns_zone_link" {
-  location  = "global"
-  name      = "${azapi_resource.virtual_network.name}-link"
-  parent_id = azapi_resource.private_dns_zone.id
-  type      = "Microsoft.Network/privateDnsZones/virtualNetworkLinks@2024-06-01"
-  body = {
-    properties = {
-      registrationEnabled = false
-      virtualNetwork = {
-        id = azapi_resource.virtual_network.id
-      }
-    }
-  }
-  tags = var.tags
-}
-
-module "search_service" {
-  source = "../../"
-
-  location                     = var.location
-  name                         = "search-avm-${random_string.suffix.result}"
-  resource_group_name          = azapi_resource.resource_group.name
-  allowed_ips                  = var.azure_ai_allowed_ips
-  enable_telemetry             = var.enable_telemetry
-  local_authentication_enabled = var.local_authentication_enabled
-  managed_identities = {
-    system_assigned = true
-  }
-  private_endpoints = {
-    primary = {
-      subnet_resource_id            = azapi_resource.virtual_network.output.properties.subnets[0].id
-      private_dns_zone_resource_ids = [azapi_resource.private_dns_zone.id]
-      private_dns_zone_group_name   = "default"
-    }
-  }
-  public_network_access_enabled = false
-  sku                           = "standard"
-}
-```
-
 <!-- markdownlint-disable MD033 -->
 ## Requirements
 
-The following requirements are needed by this module:
-
-- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
-
-- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.8)
-
-- <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9, < 2.0 |
+| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | ~> 2.8 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.5 |
 
 ## Resources
 
-The following resources are used by this module:
-
-- [azapi_resource.private_dns_zone](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.private_dns_zone_link](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [azapi_resource.virtual_network](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
-- [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) (resource)
-- [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+| Name | Type |
+|------|------|
+| [azapi_resource.private_dns_zone](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
+| [azapi_resource.private_dns_zone_link](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
+| [azapi_resource.resource_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
+| [azapi_resource.virtual_network](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
+| [random_string.suffix](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/string) | resource |
+| [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) | data source |
 
 <!-- markdownlint-disable MD013 -->
-## Required Inputs
+## Inputs
 
-No required inputs.
-
-## Optional Inputs
-
-The following input variables are optional (have default values):
-
-### <a name="input_azure_ai_allowed_ips"></a> [azure\_ai\_allowed\_ips](#input\_azure\_ai\_allowed\_ips)
-
-Description: One or more IP Addresses, or CIDR Blocks which should be able to access the AI Search service
-
-Type: `list(string)`
-
-Default: `[]`
-
-### <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry)
-
-Description: This variable controls whether or not telemetry is enabled for the module.  
-For more information see <https://aka.ms/avm/telemetryinfo>.  
-If it is set to false, then no telemetry will be collected.
-
-Type: `bool`
-
-Default: `true`
-
-### <a name="input_local_authentication_enabled"></a> [local\_authentication\_enabled](#input\_local\_authentication\_enabled)
-
-Description: This variable controls whether or not local authentication is enabled for the module.
-
-Type: `bool`
-
-Default: `true`
-
-### <a name="input_location"></a> [location](#input\_location)
-
-Description: The location for the resources.
-
-Type: `string`
-
-Default: `"westus"`
-
-### <a name="input_tags"></a> [tags](#input\_tags)
-
-Description: (Optinal) A mapping of tags to assign to the resource.
-
-Type: `map(string)`
-
-Default: `null`
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_azure_ai_allowed_ips"></a> [azure\_ai\_allowed\_ips](#input\_azure\_ai\_allowed\_ips) | One or more IP Addresses, or CIDR Blocks which should be able to access the AI Search service | `list(string)` | `[]` | no |
+| <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry) | This variable controls whether or not telemetry is enabled for the module.<br/>For more information see <https://aka.ms/avm/telemetryinfo>.<br/>If it is set to false, then no telemetry will be collected. | `bool` | `true` | no |
+| <a name="input_local_authentication_enabled"></a> [local\_authentication\_enabled](#input\_local\_authentication\_enabled) | This variable controls whether or not local authentication is enabled for the module. | `bool` | `true` | no |
+| <a name="input_location"></a> [location](#input\_location) | The location for the resources. | `string` | `"westus"` | no |
+| <a name="input_tags"></a> [tags](#input\_tags) | (Optinal) A mapping of tags to assign to the resource. | `map(string)` | `null` | no |
 
 ## Outputs
 
-The following outputs are exported:
-
-### <a name="output_private_endpoint_id"></a> [private\_endpoint\_id](#output\_private\_endpoint\_id)
-
-Description: The resource ID of the deployed private endpoint.
-
-### <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id)
-
-Description: The resource ID of the deployed Search Service.
+| Name | Description |
+|------|-------------|
+| <a name="output_private_endpoint_id"></a> [private\_endpoint\_id](#output\_private\_endpoint\_id) | The resource ID of the deployed private endpoint. |
+| <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id) | The resource ID of the deployed Search Service. |
 
 ## Modules
 
-The following Modules are called:
-
-### <a name="module_search_service"></a> [search\_service](#module\_search\_service)
-
-Source: ../../
-
-Version:
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_search_service"></a> [search\_service](#module\_search\_service) | ../../ | n/a |
 
 
 <!-- markdownlint-disable-next-line MD041 -->
