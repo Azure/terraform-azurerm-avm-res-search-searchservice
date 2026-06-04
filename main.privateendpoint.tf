@@ -186,7 +186,7 @@ resource "azapi_resource" "private_endpoint_role_assignment" {
   parent_id = azapi_resource.private_endpoint[each.value.pe_key].id
   type      = var.resource_types.authorization_role_assignments
   body = {
-    properties = {
+    properties = { for k, v in {
       roleDefinitionId = (
         strcontains(lower(each.value.role_definition_id_or_name), lower(local.role_definition_resource_substring))
         ? each.value.role_definition_id_or_name
@@ -200,7 +200,7 @@ resource "azapi_resource" "private_endpoint_role_assignment" {
       condition                          = each.value.condition
       conditionVersion                   = each.value.condition_version
       delegatedManagedIdentityResourceId = each.value.delegated_managed_identity_resource_id
-    }
+    } : k => v if v != null }
   }
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
@@ -225,6 +225,11 @@ resource "azapi_resource" "private_endpoint_role_assignment" {
       read   = timeouts.value.read
       update = timeouts.value.update
     }
+  }
+
+  # See azapi_resource.role_assignment in main.tf for rationale.
+  lifecycle {
+    ignore_changes = [name]
   }
 }
 

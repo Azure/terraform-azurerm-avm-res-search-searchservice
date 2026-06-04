@@ -71,7 +71,6 @@ resource "azapi_resource" "lock" {
   body = {
     properties = {
       level = var.lock.kind
-      notes = "Lock managed by terraform-azurerm-avm-res-search-searchservice."
     }
   }
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
@@ -107,7 +106,7 @@ resource "azapi_resource" "role_assignment" {
   parent_id = azapi_resource.this.id
   type      = var.resource_types.authorization_role_assignments
   body = {
-    properties = {
+    properties = { for k, v in {
       roleDefinitionId                   = local.role_definition_ids[each.key]
       principalId                        = each.value.principal_id
       principalType                      = each.value.principal_type
@@ -115,7 +114,7 @@ resource "azapi_resource" "role_assignment" {
       condition                          = each.value.condition
       conditionVersion                   = each.value.condition_version
       delegatedManagedIdentityResourceId = each.value.delegated_managed_identity_resource_id
-    }
+    } : k => v if v != null }
   }
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
@@ -144,10 +143,13 @@ resource "azapi_resource" "role_assignment" {
     }
   }
 
-  # Role definition lookups can return name → id mappings that change between
-  # plans; replacing on principal/role change is intentional.
+  # Role assignment names are server-allocated GUIDs in Azure; we generate one
+  # via random_uuid for new resources but ignore changes so that consumers
+  # migrating from the pre-AzAPI module versions keep their existing name
+  # (the GUID is carried through state by the `moved` block in main.moved.tf)
+  # rather than triggering a destructive replacement.
   lifecycle {
-    replace_triggered_by = [random_uuid.role_assignment[each.key]]
+    ignore_changes = [name]
   }
 }
 

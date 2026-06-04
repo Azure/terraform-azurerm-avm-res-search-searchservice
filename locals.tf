@@ -98,9 +98,11 @@ locals {
   # ---------------------------------------------------------------------------
   role_definition_resource_substring = "/providers/Microsoft.Authorization/roleDefinitions"
   # ---------------------------------------------------------------------------
-  # Properties body for the search service
+  # Properties body for the search service.
+  # Null-valued keys are stripped so we never PUT a null that Azure echoes
+  # back as a server default — which would oscillate plans forever.
   # ---------------------------------------------------------------------------
-  search_service_properties = {
+  search_service_properties = { for k, v in {
     authOptions         = local.auth_options_body
     disableLocalAuth    = var.local_authentication_enabled == null ? null : !var.local_authentication_enabled
     encryptionWithCmk   = local.encryption_with_cmk_body
@@ -110,5 +112,5 @@ locals {
     publicNetworkAccess = var.public_network_access_enabled ? "Enabled" : "Disabled"
     replicaCount        = var.replica_count
     semanticSearch      = var.semantic_search_sku
-  }
+  } : k => v if v != null }
 }
