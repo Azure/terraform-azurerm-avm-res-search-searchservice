@@ -27,76 +27,459 @@ This module deploys an **Azure AI Search** service (`Microsoft.Search/searchServ
 <!-- markdownlint-disable MD033 -->
 ## Requirements
 
-| Name | Version |
-|------|---------|
-| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9, < 2.0 |
-| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | ~> 2.8 |
-| <a name="requirement_modtm"></a> [modtm](#requirement\_modtm) | ~> 0.3 |
-| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.5 |
+The following requirements are needed by this module:
+
+- <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
+
+- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.8)
+
+- <a name="requirement_modtm"></a> [modtm](#requirement\_modtm) (~> 0.3)
+
+- <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
 
 ## Resources
 
-| Name | Type |
-|------|------|
-| [azapi_resource.diagnostic_setting](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.private_endpoint](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.private_endpoint_dns_zone_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.private_endpoint_lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.private_endpoint_role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [azapi_resource.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
-| [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) | resource |
-| [random_uuid.private_endpoint_role_assignment](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) | resource |
-| [random_uuid.role_assignment](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) | resource |
-| [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) | resource |
-| [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) | data source |
-| [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) | data source |
-| [azapi_resource_list.private_endpoint_role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) | data source |
-| [azapi_resource_list.role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) | data source |
-| [modtm_module_source.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/data-sources/module_source) | data source |
+The following resources are used by this module:
+
+- [azapi_resource.diagnostic_setting](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.private_endpoint](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.private_endpoint_dns_zone_group](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.private_endpoint_lock](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.private_endpoint_role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.role_assignment](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_resource.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) (resource)
+- [random_uuid.private_endpoint_role_assignment](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
+- [random_uuid.role_assignment](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
+- [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
+- [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+- [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+- [azapi_resource_list.private_endpoint_role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) (data source)
+- [azapi_resource_list.role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) (data source)
+- [modtm_module_source.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/data-sources/module_source) (data source)
 
 <!-- markdownlint-disable MD013 -->
-## Inputs
+## Required Inputs
 
-| Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
-| <a name="input_location"></a> [location](#input\_location) | (Required) Azure region where the resource should be deployed. | `string` | n/a | yes |
-| <a name="input_name"></a> [name](#input\_name) | (Required) The name of the Azure AI Search Service. Must be 2-60 characters, lowercase letters, digits, and hyphens; cannot start or end with a hyphen and cannot contain consecutive hyphens. | `string` | n/a | yes |
-| <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | (Required) The resource group where the resource will be deployed. | `string` | n/a | yes |
-| <a name="input_allowed_ips"></a> [allowed\_ips](#input\_allowed\_ips) | (Optional) One or more IPv4 addresses or CIDR blocks which should be able to access the Search Service. Maps to `properties.networkRuleSet.ipRules`. Only applied when `public_network_access_enabled` is `true`. | `list(string)` | `null` | no |
-| <a name="input_authentication_failure_mode"></a> [authentication\_failure\_mode](#input\_authentication\_failure\_mode) | (Optional) The response that the Search Service should return for requests that fail authentication. Possible values are `http401WithBearerChallenge` or `http403`. Maps to `properties.authOptions.aadOrApiKey.aadAuthFailureMode`. | `string` | `null` | no |
-| <a name="input_customer_managed_key"></a> [customer\_managed\_key](#input\_customer\_managed\_key) | (Optional) A customer-managed key configuration to associate with the Search Service. Maps to `properties.encryptionWithCmk.serviceLevelEncryptionKey`.<br/><br/>> [!IMPORTANT]<br/>> Service-level CMK key configuration is currently only accepted on **preview** API versions of `Microsoft.Search/searchServices` (2024-06-01-preview onwards). When using the default stable API version, only `customer_managed_key_enforcement_enabled` is honoured and the key/version fields are silently ignored. To activate full service-level CMK, override `var.resource_types.search_search_services` to a preview API version (e.g. `"Microsoft.Search/searchServices@2026-03-01-preview"`).<br/><br/>- `key_vault_resource_id` - (Required) The Azure resource ID of the Key Vault containing the key.<br/>- `key_name`              - (Required) The name of the key in the Key Vault.<br/>- `key_version`           - (Optional) The version of the key. If `null`, the latest version is used.<br/>- `user_assigned_identity` - (Optional) The user-assigned identity to use when accessing the Key Vault. If `null`, the Search Service system-assigned identity is used. Must be one of the identities passed via `managed_identities.user_assigned_resource_ids`.<br/>  - `resource_id` - (Required) The resource ID of the user-assigned managed identity. | <pre>object({<br/>    key_vault_resource_id = string<br/>    key_name              = string<br/>    key_version           = optional(string, null)<br/>    user_assigned_identity = optional(object({<br/>      resource_id = string<br/>    }), null)<br/>  })</pre> | `null` | no |
-| <a name="input_customer_managed_key_enforcement_enabled"></a> [customer\_managed\_key\_enforcement\_enabled](#input\_customer\_managed\_key\_enforcement\_enabled) | (Optional) Whether the Search Service should enforce that all dependent resources are encrypted with the customer-managed key. Maps to `properties.encryptionWithCmk.enforcement` (`Enabled`/`Disabled`). | `bool` | `null` | no |
-| <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings) | A map of diagnostic settings to create on the Search Service. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time.<br/><br/>- `name` - (Optional) The name of the diagnostic setting. One will be generated if not set.<br/>- `log_categories` - (Optional) A set of log categories to send to the destination. Defaults to `[]`.<br/>- `log_groups` - (Optional) A set of log category groups to send to the destination. Defaults to `["allLogs"]`.<br/>- `metric_categories` - (Optional) A set of metric categories to send to the destination. Defaults to `["AllMetrics"]`.<br/>- `log_analytics_destination_type` - (Optional) The destination type for the diagnostic setting. Possible values are `Dedicated` and `AzureDiagnostics`. Defaults to `Dedicated`.<br/>- `workspace_resource_id` - (Optional) The resource ID of the Log Analytics workspace.<br/>- `storage_account_resource_id` - (Optional) The resource ID of the storage account.<br/>- `event_hub_authorization_rule_resource_id` - (Optional) The resource ID of the Event Hub authorization rule.<br/>- `event_hub_name` - (Optional) The Event Hub name. If unset, the default Event Hub is used.<br/>- `marketplace_partner_resource_id` - (Optional) The resource ID of the Marketplace partner solution. | <pre>map(object({<br/>    name                                     = optional(string, null)<br/>    log_categories                           = optional(set(string), [])<br/>    log_groups                               = optional(set(string), ["allLogs"])<br/>    metric_categories                        = optional(set(string), ["AllMetrics"])<br/>    log_analytics_destination_type           = optional(string, "Dedicated")<br/>    workspace_resource_id                    = optional(string, null)<br/>    storage_account_resource_id              = optional(string, null)<br/>    event_hub_authorization_rule_resource_id = optional(string, null)<br/>    event_hub_name                           = optional(string, null)<br/>    marketplace_partner_resource_id          = optional(string, null)<br/>  }))</pre> | `{}` | no |
-| <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry) | This variable controls whether or not telemetry is enabled for the module.<br/>For more information see <https://aka.ms/avm/telemetryinfo>.<br/>If it is set to false, then no telemetry will be collected. | `bool` | `true` | no |
-| <a name="input_hosting_mode"></a> [hosting\_mode](#input\_hosting\_mode) | (Optional) Hosting mode for the Search Service. Possible values are `default` or `highDensity` (only valid for the `standard3` SKU). Maps to `properties.hostingMode`. Changing this forces a new resource to be created. | `string` | `null` | no |
-| <a name="input_local_authentication_enabled"></a> [local\_authentication\_enabled](#input\_local\_authentication\_enabled) | (Optional) Whether the Search Service permits authenticating with API keys. Maps to `properties.disableLocalAuth` (inverted). Defaults to `true` on the service when unset. | `bool` | `null` | no |
-| <a name="input_lock"></a> [lock](#input\_lock) | Controls the resource lock applied to the Search Service. Implemented via `Microsoft.Authorization/locks`.<br/><br/>- `kind` - (Required) The type of lock. Possible values are `CanNotDelete` and `ReadOnly`.<br/>- `name` - (Optional) The name of the lock. If not specified, a name is generated based on `kind`. | <pre>object({<br/>    kind = string<br/>    name = optional(string, null)<br/>  })</pre> | `null` | no |
-| <a name="input_managed_identities"></a> [managed\_identities](#input\_managed\_identities) | Controls the Managed Identity configuration on the Search Service.<br/><br/>- `system_assigned` - (Optional) Whether the system-assigned managed identity should be enabled.<br/>- `user_assigned_resource_ids` - (Optional) A set of user-assigned managed identity resource IDs to assign. | <pre>object({<br/>    system_assigned            = optional(bool, false)<br/>    user_assigned_resource_ids = optional(set(string), [])<br/>  })</pre> | `{}` | no |
-| <a name="input_network_rule_bypass_option"></a> [network\_rule\_bypass\_option](#input\_network\_rule\_bypass\_option) | (Optional) Whether to allow trusted Azure services to bypass network rules. Possible values are `None`, `AzureServices`, and `AzurePortal`. Defaults to `None`. Maps to `properties.networkRuleSet.bypass`. | `string` | `"None"` | no |
-| <a name="input_partition_count"></a> [partition\_count](#input\_partition\_count) | (Optional) The number of partitions in the Search Service. Allowed values: 1, 2, 3, 4, 6, 12. Values greater than 1 require a standard SKU. | `number` | `1` | no |
-| <a name="input_private_endpoints"></a> [private\_endpoints](#input\_private\_endpoints) | A map of private endpoints to create on the Search Service. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time.<br/><br/>- `name` - (Optional) Private endpoint name. One is generated if unset.<br/>- `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. Same shape as `var.role_assignments`.<br/>- `lock` - (Optional) A lock to apply to the private endpoint.<br/>- `tags` - (Optional) Tags to assign to the private endpoint.<br/>- `subnet_resource_id` - (Required) The resource ID of the subnet to deploy the private endpoint in.<br/>- `private_dns_zone_group_name` - (Optional) The name of the private DNS zone group. Defaults to `default`.<br/>- `private_dns_zone_resource_ids` - (Optional) A set of private DNS zone resource IDs to associate. If empty, no zone group is created.<br/>- `application_security_group_associations` - (Optional) A map (arbitrary key → ASG resource ID) of application security groups to associate.<br/>- `private_service_connection_name` - (Optional) Private service connection name. One is generated if unset.<br/>- `network_interface_name` - (Optional) The custom network interface name. One is generated by Azure if unset.<br/>- `location` - (Optional) The location to deploy the private endpoint in. Defaults to `var.location`.<br/>- `resource_group_name` - (Optional) The resource group to deploy the private endpoint in. Defaults to `var.resource_group_name`.<br/>- `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint.<br/>  - `name` - (Required) The IP configuration name.<br/>  - `private_ip_address` - (Required) The static private IP address to assign. | <pre>map(object({<br/>    name = optional(string, null)<br/>    role_assignments = optional(map(object({<br/>      role_definition_id_or_name             = string<br/>      principal_id                           = string<br/>      description                            = optional(string, null)<br/>      skip_service_principal_aad_check       = optional(bool, false)<br/>      condition                              = optional(string, null)<br/>      condition_version                      = optional(string, null)<br/>      delegated_managed_identity_resource_id = optional(string, null)<br/>      principal_type                         = optional(string, null)<br/>    })), {})<br/>    lock = optional(object({<br/>      kind = string<br/>      name = optional(string, null)<br/>    }), null)<br/>    tags                                    = optional(map(string), null)<br/>    subnet_resource_id                      = string<br/>    private_dns_zone_group_name             = optional(string, "default")<br/>    private_dns_zone_resource_ids           = optional(set(string), [])<br/>    application_security_group_associations = optional(map(string), {})<br/>    private_service_connection_name         = optional(string, null)<br/>    network_interface_name                  = optional(string, null)<br/>    location                                = optional(string, null)<br/>    resource_group_name                     = optional(string, null)<br/>    ip_configurations = optional(map(object({<br/>      name               = string<br/>      private_ip_address = string<br/>    })), {})<br/>  }))</pre> | `{}` | no |
-| <a name="input_private_endpoints_manage_dns_zone_group"></a> [private\_endpoints\_manage\_dns\_zone\_group](#input\_private\_endpoints\_manage\_dns\_zone\_group) | (Optional) Whether this module manages the private DNS zone groups. If `false`, you must manage them externally (for example via Azure Policy). | `bool` | `true` | no |
-| <a name="input_public_network_access_enabled"></a> [public\_network\_access\_enabled](#input\_public\_network\_access\_enabled) | (Optional) Whether public network access is enabled. Maps to `properties.publicNetworkAccess` (`Enabled`/`Disabled`). | `bool` | `true` | no |
-| <a name="input_replica_count"></a> [replica\_count](#input\_replica\_count) | (Optional) The number of replicas. 1–12 for standard SKUs, 1–3 for basic. At least 2 replicas are required for HA query workloads, 3 for HA indexing. | `number` | `1` | no |
-| <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types) | (Optional) Override the AzAPI `type` values used by the module. See [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6). Each key defaults to the latest stable API version the module has been tested against; override only when you need to pin to a specific API version.<br/><br/>- `search_search_services` - The primary `Microsoft.Search/searchServices` resource.<br/>- `authorization_locks` - The lock resource used to implement `var.lock`.<br/>- `authorization_role_assignments` - The role assignment resource used to implement `var.role_assignments`.<br/>- `insights_diagnostic_settings` - The diagnostic setting resource used to implement `var.diagnostic_settings`.<br/>- `network_private_endpoints` - The private endpoint resource used to implement `var.private_endpoints`.<br/>- `network_private_endpoints_private_dns_zone_groups` - The private DNS zone group child resource. | <pre>object({<br/>    search_search_services                            = optional(string, "Microsoft.Search/searchServices@2025-05-01")<br/>    authorization_locks                               = optional(string, "Microsoft.Authorization/locks@2020-05-01")<br/>    authorization_role_assignments                    = optional(string, "Microsoft.Authorization/roleAssignments@2022-04-01")<br/>    insights_diagnostic_settings                      = optional(string, "Microsoft.Insights/diagnosticSettings@2021-05-01-preview")<br/>    network_private_endpoints                         = optional(string, "Microsoft.Network/privateEndpoints@2024-05-01")<br/>    network_private_endpoints_private_dns_zone_groups = optional(string, "Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01")<br/>  })</pre> | `{}` | no |
-| <a name="input_retry"></a> [retry](#input\_retry) | Retry configuration applied to every `azapi` resource managed by the module. Defaults to `null` (no custom retry).<br/><br/>- `error_message_regex`  - (Optional) Regex patterns matching error messages that trigger a retry.<br/>- `interval_seconds`     - (Optional) Initial interval between retries in seconds.<br/>- `max_interval_seconds` - (Optional) Maximum interval between retries in seconds.<br/><br/>See <https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource#retry>. | <pre>object({<br/>    error_message_regex  = optional(list(string))<br/>    interval_seconds     = optional(number)<br/>    max_interval_seconds = optional(number)<br/>  })</pre> | `null` | no |
-| <a name="input_role_assignments"></a> [role\_assignments](#input\_role\_assignments) | A map of role assignments to create on the Search Service. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time.<br/><br/>- `role_definition_id_or_name` - (Required) The full resource ID or display name of the role definition.<br/>- `principal_id` - (Required) The principal (object) ID of the user, group, service principal or managed identity to assign the role to.<br/>- `description` - (Optional) Description of the role assignment.<br/>- `skip_service_principal_aad_check` - (Optional) When assigning to a freshly created service principal, set to `true`. Implemented in AzAPI by retrying the role assignment until the principal is replicated.<br/>- `condition` - (Optional) ABAC condition.<br/>- `condition_version` - (Optional) Version of the condition syntax. Only `2.0` is supported.<br/>- `delegated_managed_identity_resource_id` - (Optional) Resource ID of the delegated managed identity.<br/>- `principal_type` - (Optional) The type of the principal. One of `User`, `Group`, `ServicePrincipal`, `ForeignGroup`, `Device`.<br/><br/>> Note: when `role_definition_id_or_name` is a name (not a full resource ID) the module resolves it via `Microsoft.Authorization/roleDefinitions` data lookup at the subscription scope. | <pre>map(object({<br/>    role_definition_id_or_name             = string<br/>    principal_id                           = string<br/>    description                            = optional(string, null)<br/>    skip_service_principal_aad_check       = optional(bool, false)<br/>    condition                              = optional(string, null)<br/>    condition_version                      = optional(string, null)<br/>    delegated_managed_identity_resource_id = optional(string, null)<br/>    principal_type                         = optional(string, null)<br/>  }))</pre> | `{}` | no |
-| <a name="input_semantic_search_sku"></a> [semantic\_search\_sku](#input\_semantic\_search\_sku) | (Optional) Semantic search billing plan. Possible values are `disabled`, `free`, or `standard`. Maps to `properties.semanticSearch`. | `string` | `null` | no |
-| <a name="input_sku"></a> [sku](#input\_sku) | (Optional) The pricing tier of the Search Service. Defaults to `standard`. Possible values: `free`, `basic`, `standard`, `standard2`, `standard3`, `storage_optimized_l1`, `storage_optimized_l2`. Changing this forces a new resource. | `string` | `"standard"` | no |
-| <a name="input_tags"></a> [tags](#input\_tags) | (Optional) Tags to apply to the Search Service. | `map(string)` | `null` | no |
-| <a name="input_timeouts"></a> [timeouts](#input\_timeouts) | Default per-operation timeouts applied to every `azapi` resource managed by the module. Defaults to `null` (provider defaults). Values are Go duration strings (e.g. `30m`, `1h`).<br/><br/>- `create` - (Optional) Timeout for create operations.<br/>- `read`   - (Optional) Timeout for read operations.<br/>- `update` - (Optional) Timeout for update operations.<br/>- `delete` - (Optional) Timeout for delete operations. | <pre>object({<br/>    create = optional(string)<br/>    read   = optional(string)<br/>    update = optional(string)<br/>    delete = optional(string)<br/>  })</pre> | `null` | no |
+The following input variables are required:
+
+### <a name="input_location"></a> [location](#input\_location)
+
+Description: (Required) Azure region where the resource should be deployed.
+
+Type: `string`
+
+### <a name="input_name"></a> [name](#input\_name)
+
+Description: (Required) The name of the Azure AI Search Service. Must be 2-60 characters, lowercase letters, digits, and hyphens; cannot start or end with a hyphen and cannot contain consecutive hyphens.
+
+Type: `string`
+
+### <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name)
+
+Description: (Required) The resource group where the resource will be deployed.
+
+Type: `string`
+
+## Optional Inputs
+
+The following input variables are optional (have default values):
+
+### <a name="input_allowed_ips"></a> [allowed\_ips](#input\_allowed\_ips)
+
+Description: (Optional) One or more IPv4 addresses or CIDR blocks which should be able to access the Search Service. Maps to `properties.networkRuleSet.ipRules`. Only applied when `public_network_access_enabled` is `true`.
+
+Type: `list(string)`
+
+Default: `null`
+
+### <a name="input_authentication_failure_mode"></a> [authentication\_failure\_mode](#input\_authentication\_failure\_mode)
+
+Description: (Optional) The response that the Search Service should return for requests that fail authentication. Possible values are `http401WithBearerChallenge` or `http403`. Maps to `properties.authOptions.aadOrApiKey.aadAuthFailureMode`.
+
+Type: `string`
+
+Default: `null`
+
+### <a name="input_customer_managed_key"></a> [customer\_managed\_key](#input\_customer\_managed\_key)
+
+Description: (Optional) A customer-managed key configuration to associate with the Search Service. Maps to `properties.encryptionWithCmk.serviceLevelEncryptionKey`.
+
+> [!IMPORTANT]
+> Service-level CMK key configuration is currently only accepted on **preview** API versions of `Microsoft.Search/searchServices` (2024-06-01-preview onwards). When using the default stable API version, only `customer_managed_key_enforcement_enabled` is honoured and the key/version fields are silently ignored. To activate full service-level CMK, override `var.resource_types.search_search_services` to a preview API version (e.g. `"Microsoft.Search/searchServices@2026-03-01-preview"`).
+
+- `key_vault_resource_id` - (Required) The Azure resource ID of the Key Vault containing the key.
+- `key_name`              - (Required) The name of the key in the Key Vault.
+- `key_version`           - (Optional) The version of the key. If `null`, the latest version is used.
+- `user_assigned_identity` - (Optional) The user-assigned identity to use when accessing the Key Vault. If `null`, the Search Service system-assigned identity is used. Must be one of the identities passed via `managed_identities.user_assigned_resource_ids`.
+  - `resource_id` - (Required) The resource ID of the user-assigned managed identity.
+
+Type:
+
+```hcl
+object({
+    key_vault_resource_id = string
+    key_name              = string
+    key_version           = optional(string, null)
+    user_assigned_identity = optional(object({
+      resource_id = string
+    }), null)
+  })
+```
+
+Default: `null`
+
+### <a name="input_customer_managed_key_enforcement_enabled"></a> [customer\_managed\_key\_enforcement\_enabled](#input\_customer\_managed\_key\_enforcement\_enabled)
+
+Description: (Optional) Whether the Search Service should enforce that all dependent resources are encrypted with the customer-managed key. Maps to `properties.encryptionWithCmk.enforcement` (`Enabled`/`Disabled`).
+
+Type: `bool`
+
+Default: `null`
+
+### <a name="input_diagnostic_settings"></a> [diagnostic\_settings](#input\_diagnostic\_settings)
+
+Description: A map of diagnostic settings to create on the Search Service. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time.
+
+- `name` - (Optional) The name of the diagnostic setting. One will be generated if not set.
+- `log_categories` - (Optional) A set of log categories to send to the destination. Defaults to `[]`.
+- `log_groups` - (Optional) A set of log category groups to send to the destination. Defaults to `["allLogs"]`.
+- `metric_categories` - (Optional) A set of metric categories to send to the destination. Defaults to `["AllMetrics"]`.
+- `log_analytics_destination_type` - (Optional) The destination type for the diagnostic setting. Possible values are `Dedicated` and `AzureDiagnostics`. Defaults to `Dedicated`.
+- `workspace_resource_id` - (Optional) The resource ID of the Log Analytics workspace.
+- `storage_account_resource_id` - (Optional) The resource ID of the storage account.
+- `event_hub_authorization_rule_resource_id` - (Optional) The resource ID of the Event Hub authorization rule.
+- `event_hub_name` - (Optional) The Event Hub name. If unset, the default Event Hub is used.
+- `marketplace_partner_resource_id` - (Optional) The resource ID of the Marketplace partner solution.
+
+Type:
+
+```hcl
+map(object({
+    name                                     = optional(string, null)
+    log_categories                           = optional(set(string), [])
+    log_groups                               = optional(set(string), ["allLogs"])
+    metric_categories                        = optional(set(string), ["AllMetrics"])
+    log_analytics_destination_type           = optional(string, "Dedicated")
+    workspace_resource_id                    = optional(string, null)
+    storage_account_resource_id              = optional(string, null)
+    event_hub_authorization_rule_resource_id = optional(string, null)
+    event_hub_name                           = optional(string, null)
+    marketplace_partner_resource_id          = optional(string, null)
+  }))
+```
+
+Default: `{}`
+
+### <a name="input_enable_telemetry"></a> [enable\_telemetry](#input\_enable\_telemetry)
+
+Description: This variable controls whether or not telemetry is enabled for the module.  
+For more information see <https://aka.ms/avm/telemetryinfo>.  
+If it is set to false, then no telemetry will be collected.
+
+Type: `bool`
+
+Default: `true`
+
+### <a name="input_hosting_mode"></a> [hosting\_mode](#input\_hosting\_mode)
+
+Description: (Optional) Hosting mode for the Search Service. Possible values are `default` or `highDensity` (only valid for the `standard3` SKU). Maps to `properties.hostingMode`. Changing this forces a new resource to be created.
+
+Type: `string`
+
+Default: `null`
+
+### <a name="input_local_authentication_enabled"></a> [local\_authentication\_enabled](#input\_local\_authentication\_enabled)
+
+Description: (Optional) Whether the Search Service permits authenticating with API keys. Maps to `properties.disableLocalAuth` (inverted). Defaults to `true` on the service when unset.
+
+Type: `bool`
+
+Default: `null`
+
+### <a name="input_lock"></a> [lock](#input\_lock)
+
+Description: Controls the resource lock applied to the Search Service. Implemented via `Microsoft.Authorization/locks`.
+
+- `kind` - (Required) The type of lock. Possible values are `CanNotDelete` and `ReadOnly`.
+- `name` - (Optional) The name of the lock. If not specified, a name is generated based on `kind`.
+
+Type:
+
+```hcl
+object({
+    kind = string
+    name = optional(string, null)
+  })
+```
+
+Default: `null`
+
+### <a name="input_managed_identities"></a> [managed\_identities](#input\_managed\_identities)
+
+Description: Controls the Managed Identity configuration on the Search Service.
+
+- `system_assigned` - (Optional) Whether the system-assigned managed identity should be enabled.
+- `user_assigned_resource_ids` - (Optional) A set of user-assigned managed identity resource IDs to assign.
+
+Type:
+
+```hcl
+object({
+    system_assigned            = optional(bool, false)
+    user_assigned_resource_ids = optional(set(string), [])
+  })
+```
+
+Default: `{}`
+
+### <a name="input_network_rule_bypass_option"></a> [network\_rule\_bypass\_option](#input\_network\_rule\_bypass\_option)
+
+Description: (Optional) Whether to allow trusted Azure services to bypass network rules. Possible values are `None`, `AzureServices`, and `AzurePortal`. Defaults to `None`. Maps to `properties.networkRuleSet.bypass`.
+
+Type: `string`
+
+Default: `"None"`
+
+### <a name="input_partition_count"></a> [partition\_count](#input\_partition\_count)
+
+Description: (Optional) The number of partitions in the Search Service. Allowed values: 1, 2, 3, 4, 6, 12. Values greater than 1 require a standard SKU.
+
+Type: `number`
+
+Default: `1`
+
+### <a name="input_private_endpoints"></a> [private\_endpoints](#input\_private\_endpoints)
+
+Description: A map of private endpoints to create on the Search Service. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time.
+
+- `name` - (Optional) Private endpoint name. One is generated if unset.
+- `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. Same shape as `var.role_assignments`.
+- `lock` - (Optional) A lock to apply to the private endpoint.
+- `tags` - (Optional) Tags to assign to the private endpoint.
+- `subnet_resource_id` - (Required) The resource ID of the subnet to deploy the private endpoint in.
+- `private_dns_zone_group_name` - (Optional) The name of the private DNS zone group. Defaults to `default`.
+- `private_dns_zone_resource_ids` - (Optional) A set of private DNS zone resource IDs to associate. If empty, no zone group is created.
+- `application_security_group_associations` - (Optional) A map (arbitrary key → ASG resource ID) of application security groups to associate.
+- `private_service_connection_name` - (Optional) Private service connection name. One is generated if unset.
+- `network_interface_name` - (Optional) The custom network interface name. One is generated by Azure if unset.
+- `location` - (Optional) The location to deploy the private endpoint in. Defaults to `var.location`.
+- `resource_group_name` - (Optional) The resource group to deploy the private endpoint in. Defaults to `var.resource_group_name`.
+- `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint.
+  - `name` - (Required) The IP configuration name.
+  - `private_ip_address` - (Required) The static private IP address to assign.
+
+Type:
+
+```hcl
+map(object({
+    name = optional(string, null)
+    role_assignments = optional(map(object({
+      role_definition_id_or_name             = string
+      principal_id                           = string
+      description                            = optional(string, null)
+      skip_service_principal_aad_check       = optional(bool, false)
+      condition                              = optional(string, null)
+      condition_version                      = optional(string, null)
+      delegated_managed_identity_resource_id = optional(string, null)
+      principal_type                         = optional(string, null)
+    })), {})
+    lock = optional(object({
+      kind = string
+      name = optional(string, null)
+    }), null)
+    tags                                    = optional(map(string), null)
+    subnet_resource_id                      = string
+    private_dns_zone_group_name             = optional(string, "default")
+    private_dns_zone_resource_ids           = optional(set(string), [])
+    application_security_group_associations = optional(map(string), {})
+    private_service_connection_name         = optional(string, null)
+    network_interface_name                  = optional(string, null)
+    location                                = optional(string, null)
+    resource_group_name                     = optional(string, null)
+    ip_configurations = optional(map(object({
+      name               = string
+      private_ip_address = string
+    })), {})
+  }))
+```
+
+Default: `{}`
+
+### <a name="input_private_endpoints_manage_dns_zone_group"></a> [private\_endpoints\_manage\_dns\_zone\_group](#input\_private\_endpoints\_manage\_dns\_zone\_group)
+
+Description: (Optional) Whether this module manages the private DNS zone groups. If `false`, you must manage them externally (for example via Azure Policy).
+
+Type: `bool`
+
+Default: `true`
+
+### <a name="input_public_network_access_enabled"></a> [public\_network\_access\_enabled](#input\_public\_network\_access\_enabled)
+
+Description: (Optional) Whether public network access is enabled. Maps to `properties.publicNetworkAccess` (`Enabled`/`Disabled`).
+
+Type: `bool`
+
+Default: `true`
+
+### <a name="input_replica_count"></a> [replica\_count](#input\_replica\_count)
+
+Description: (Optional) The number of replicas. 1–12 for standard SKUs, 1–3 for basic. At least 2 replicas are required for HA query workloads, 3 for HA indexing.
+
+Type: `number`
+
+Default: `1`
+
+### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
+
+Description: (Optional) Override the AzAPI `type` values used by the module. See [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6). Each key defaults to the latest stable API version the module has been tested against; override only when you need to pin to a specific API version.
+
+- `search_search_services` - The primary `Microsoft.Search/searchServices` resource.
+- `authorization_locks` - The lock resource used to implement `var.lock`.
+- `authorization_role_assignments` - The role assignment resource used to implement `var.role_assignments`.
+- `insights_diagnostic_settings` - The diagnostic setting resource used to implement `var.diagnostic_settings`.
+- `network_private_endpoints` - The private endpoint resource used to implement `var.private_endpoints`.
+- `network_private_endpoints_private_dns_zone_groups` - The private DNS zone group child resource.
+
+Type:
+
+```hcl
+object({
+    search_search_services                            = optional(string, "Microsoft.Search/searchServices@2025-05-01")
+    authorization_locks                               = optional(string, "Microsoft.Authorization/locks@2020-05-01")
+    authorization_role_assignments                    = optional(string, "Microsoft.Authorization/roleAssignments@2022-04-01")
+    insights_diagnostic_settings                      = optional(string, "Microsoft.Insights/diagnosticSettings@2021-05-01-preview")
+    network_private_endpoints                         = optional(string, "Microsoft.Network/privateEndpoints@2024-05-01")
+    network_private_endpoints_private_dns_zone_groups = optional(string, "Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2024-05-01")
+  })
+```
+
+Default: `{}`
+
+### <a name="input_retry"></a> [retry](#input\_retry)
+
+Description: Retry configuration applied to every `azapi` resource managed by the module. Defaults to `null` (no custom retry).
+
+- `error_message_regex`  - (Optional) Regex patterns matching error messages that trigger a retry.
+- `interval_seconds`     - (Optional) Initial interval between retries in seconds.
+- `max_interval_seconds` - (Optional) Maximum interval between retries in seconds.
+
+See <https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource#retry>.
+
+Type:
+
+```hcl
+object({
+    error_message_regex  = optional(list(string))
+    interval_seconds     = optional(number)
+    max_interval_seconds = optional(number)
+  })
+```
+
+Default: `null`
+
+### <a name="input_role_assignments"></a> [role\_assignments](#input\_role\_assignments)
+
+Description: A map of role assignments to create on the Search Service. The map key is deliberately arbitrary to avoid issues where map keys may be unknown at plan time.
+
+- `role_definition_id_or_name` - (Required) The full resource ID or display name of the role definition.
+- `principal_id` - (Required) The principal (object) ID of the user, group, service principal or managed identity to assign the role to.
+- `description` - (Optional) Description of the role assignment.
+- `skip_service_principal_aad_check` - (Optional) When assigning to a freshly created service principal, set to `true`. Implemented in AzAPI by retrying the role assignment until the principal is replicated.
+- `condition` - (Optional) ABAC condition.
+- `condition_version` - (Optional) Version of the condition syntax. Only `2.0` is supported.
+- `delegated_managed_identity_resource_id` - (Optional) Resource ID of the delegated managed identity.
+- `principal_type` - (Optional) The type of the principal. One of `User`, `Group`, `ServicePrincipal`, `ForeignGroup`, `Device`.
+
+> Note: when `role_definition_id_or_name` is a name (not a full resource ID) the module resolves it via `Microsoft.Authorization/roleDefinitions` data lookup at the subscription scope.
+
+Type:
+
+```hcl
+map(object({
+    role_definition_id_or_name             = string
+    principal_id                           = string
+    description                            = optional(string, null)
+    skip_service_principal_aad_check       = optional(bool, false)
+    condition                              = optional(string, null)
+    condition_version                      = optional(string, null)
+    delegated_managed_identity_resource_id = optional(string, null)
+    principal_type                         = optional(string, null)
+  }))
+```
+
+Default: `{}`
+
+### <a name="input_semantic_search_sku"></a> [semantic\_search\_sku](#input\_semantic\_search\_sku)
+
+Description: (Optional) Semantic search billing plan. Possible values are `disabled`, `free`, or `standard`. Maps to `properties.semanticSearch`.
+
+Type: `string`
+
+Default: `null`
+
+### <a name="input_sku"></a> [sku](#input\_sku)
+
+Description: (Optional) The pricing tier of the Search Service. Defaults to `standard`. Possible values: `free`, `basic`, `standard`, `standard2`, `standard3`, `storage_optimized_l1`, `storage_optimized_l2`. Changing this forces a new resource.
+
+Type: `string`
+
+Default: `"standard"`
+
+### <a name="input_tags"></a> [tags](#input\_tags)
+
+Description: (Optional) Tags to apply to the Search Service.
+
+Type: `map(string)`
+
+Default: `null`
+
+### <a name="input_timeouts"></a> [timeouts](#input\_timeouts)
+
+Description: Default per-operation timeouts applied to every `azapi` resource managed by the module. Defaults to `null` (provider defaults). Values are Go duration strings (e.g. `30m`, `1h`).
+
+- `create` - (Optional) Timeout for create operations.
+- `read`   - (Optional) Timeout for read operations.
+- `update` - (Optional) Timeout for update operations.
+- `delete` - (Optional) Timeout for delete operations.
+
+Type:
+
+```hcl
+object({
+    create = optional(string)
+    read   = optional(string)
+    update = optional(string)
+    delete = optional(string)
+  })
+```
+
+Default: `null`
 
 ## Outputs
 
-| Name | Description |
-|------|-------------|
-| <a name="output_name"></a> [name](#output\_name) | The name of the Azure AI Search Service. |
-| <a name="output_private_endpoints"></a> [private\_endpoints](#output\_private\_endpoints) | A map of private endpoints. The map key is the supplied input to `var.private_endpoints`. The map value is the full `azapi_resource` object for the private endpoint. |
-| <a name="output_resource"></a> [resource](#output\_resource) | The full output for the Azure AI Search Service. This is the `azapi_resource` object including its `output` attribute (exported values from the ARM response). |
-| <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id) | The Azure resource ID of the Search Service. |
-| <a name="output_system_assigned_principal_id"></a> [system\_assigned\_principal\_id](#output\_system\_assigned\_principal\_id) | The principal ID of the Search Service's system-assigned managed identity, if enabled. `null` otherwise. |
+The following outputs are exported:
+
+### <a name="output_name"></a> [name](#output\_name)
+
+Description: The name of the Azure AI Search Service.
+
+### <a name="output_private_endpoints"></a> [private\_endpoints](#output\_private\_endpoints)
+
+Description: A map of private endpoints. The map key is the supplied input to `var.private_endpoints`. The map value is the full `azapi_resource` object for the private endpoint.
+
+### <a name="output_resource"></a> [resource](#output\_resource)
+
+Description: The full output for the Azure AI Search Service. This is the `azapi_resource` object including its `output` attribute (exported values from the ARM response).
+
+### <a name="output_resource_id"></a> [resource\_id](#output\_resource\_id)
+
+Description: The Azure resource ID of the Search Service.
+
+### <a name="output_system_assigned_principal_id"></a> [system\_assigned\_principal\_id](#output\_system\_assigned\_principal\_id)
+
+Description: The principal ID of the Search Service's system-assigned managed identity, if enabled. `null` otherwise.
 
 ## Modules
 
