@@ -23,7 +23,7 @@ provider "azurerm" {
 
 module "regions" {
   source  = "Azure/regions/azurerm"
-  version = "~> 0.3"
+  version = "0.8.2"
 }
 
 resource "random_integer" "region_index" {
@@ -33,7 +33,7 @@ resource "random_integer" "region_index" {
 
 module "naming" {
   source  = "Azure/naming/azurerm"
-  version = "~> 0.3"
+  version = "0.4.3"
 }
 
 data "azurerm_client_config" "current" {}
