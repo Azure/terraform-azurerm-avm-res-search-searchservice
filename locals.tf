@@ -42,4 +42,3 @@ locals {
   cmk_key_vault_name                = try(local.cmk_key_vault_resource_id_parts.name, null)
   cmk_key_vault_resource_group_name = try(local.cmk_key_vault_resource_id_parts.rg, null)
 }
-

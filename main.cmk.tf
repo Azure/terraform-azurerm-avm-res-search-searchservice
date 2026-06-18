@@ -28,8 +28,8 @@ data "azurerm_key_vault" "cmk" {
 resource "azapi_update_resource" "cmk" {
   count = var.customer_managed_key != null ? 1 : 0
 
-  type        = "Microsoft.Search/searchServices@${var.resource_types.search_searchservices}"
   resource_id = azurerm_search_service.this.id
+  type        = "Microsoft.Search/searchServices@${var.resource_types.search_searchservices}"
   body = {
     properties = {
       encryptionWithCmk = {
@@ -47,7 +47,9 @@ resource "azapi_update_resource" "cmk" {
       }
     }
   }
-  retry = var.retry
+  read_headers   = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  retry          = var.retry
+  update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
 
   dynamic "timeouts" {
     for_each = var.timeouts == null ? [] : [var.timeouts]
