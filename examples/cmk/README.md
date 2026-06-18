@@ -33,7 +33,7 @@ provider "azurerm" {
 
 module "regions" {
   source  = "Azure/regions/azurerm"
-  version = "~> 0.3"
+  version = "0.8.2"
 }
 
 resource "random_integer" "region_index" {
@@ -43,7 +43,7 @@ resource "random_integer" "region_index" {
 
 module "naming" {
   source  = "Azure/naming/azurerm"
-  version = "~> 0.3"
+  version = "0.4.3"
 }
 
 data "azurerm_client_config" "current" {}
@@ -113,10 +113,13 @@ module "search_service" {
 }
 
 # Grant the Search Service's system-assigned identity access to wrap/unwrap the
-# CMK. With system-assigned identities this race is unavoidable: the role
-# assignment can only be created after the module has provisioned the service.
-# On first apply Terraform may retry the azapi_update_resource patch while RBAC
-# propagates; subsequent applies are idempotent.
+# CMK. With system-assigned identities the role assignment can only be created
+# after the module has provisioned the service, so it lands AFTER the module's
+# azapi_update_resource PATCH. In practice Azure validates key access lazily
+# (the PATCH returns OK and the service polls encryptionComplianceStatus), so
+# this ordering works today. If Azure tightens validation in future, callers
+# should switch to a pre-assigned user-assigned identity (tracked in the
+# broader azapi refactor).
 resource "azurerm_role_assignment" "search_kv" {
   principal_id         = module.search_service.resource.identity[0].principal_id
   scope                = azurerm_key_vault.this.id
@@ -186,13 +189,13 @@ The following Modules are called:
 
 Source: Azure/naming/azurerm
 
-Version: ~> 0.3
+Version: 0.4.3
 
 ### <a name="module_regions"></a> [regions](#module\_regions)
 
 Source: Azure/regions/azurerm
 
-Version: ~> 0.3
+Version: 0.8.2
 
 ### <a name="module_search_service"></a> [search\_service](#module\_search\_service)
 

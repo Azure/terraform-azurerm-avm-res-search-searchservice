@@ -47,7 +47,7 @@ Properties:
 - `key_vault_resource_id` - The resource ID of the Key Vault where the key is stored.
 - `key_name` - The name of the key.
 - `key_version` - (Optional) The version of the key. If not specified, the latest (versionless) key URI is used.
-- `user_assigned_identity` - (Optional) A user-assigned managed identity to use for accessing the Key Vault key. If omitted, the Search Service's system-assigned managed identity is used (requires `managed_identities.system_assigned = true`).
+- `user_assigned_identity` - **Not yet supported by this module.** The targeted 0.3 CMK fix only wires the system-assigned managed identity for Key Vault access. Setting this attribute will fail validation. Full user-assigned identity support is tracked in the broader azapi refactor.
   - `resource_id` - The resource ID of the user-assigned identity.
 
 The identity used (system- or user-assigned) MUST be granted `get`, `wrapKey` and `unwrapKey` permissions on the Key Vault key (either via access policies or RBAC, depending on the Key Vault's permission model). See the [Azure AI Search CMK documentation](https://learn.microsoft.com/azure/search/search-security-manage-encryption-keys) for prerequisites.
@@ -58,6 +58,10 @@ DESCRIPTION
   validation {
     condition     = var.customer_managed_key == null || var.customer_managed_key.user_assigned_identity != null || var.managed_identities.system_assigned
     error_message = "When `customer_managed_key` is set without `user_assigned_identity`, `managed_identities.system_assigned` must be `true` so the Search Service can authenticate to Key Vault."
+  }
+  validation {
+    condition     = var.customer_managed_key == null || try(var.customer_managed_key.user_assigned_identity, null) == null
+    error_message = "`customer_managed_key.user_assigned_identity` is not supported by this module in the 0.3 release. Use the Search Service's system-assigned managed identity (set `managed_identities.system_assigned = true`) instead. Full user-assigned identity support for CMK is tracked in the broader azapi refactor."
   }
 }
 

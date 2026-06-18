@@ -36,7 +36,7 @@ locals {
   # needs name + resource group; the variable only takes the resource ID for consumer
   # ergonomics and AVM interface consistency.
   cmk_key_vault_resource_id_parts = var.customer_managed_key == null ? null : regex(
-    "^/subscriptions/[^/]+/resourceGroups/(?P<rg>[^/]+)/providers/Microsoft\\.KeyVault/vaults/(?P<name>[^/]+)$",
+    "(?i)^/subscriptions/[^/]+/resourceGroups/(?P<rg>[^/]+)/providers/Microsoft\\.KeyVault/vaults/(?P<name>[^/]+)$",
     var.customer_managed_key.key_vault_resource_id,
   )
   cmk_key_vault_name                = try(local.cmk_key_vault_resource_id_parts.name, null)

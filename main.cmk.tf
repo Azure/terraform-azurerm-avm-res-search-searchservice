@@ -33,17 +33,18 @@ resource "azapi_update_resource" "cmk" {
   body = {
     properties = {
       encryptionWithCmk = {
-        serviceLevelEncryptionKey = {
-          keyVaultUri        = data.azurerm_key_vault.cmk[0].vault_uri
-          keyVaultKeyName    = var.customer_managed_key.key_name
-          keyVaultKeyVersion = var.customer_managed_key.key_version
-          identity = var.customer_managed_key.user_assigned_identity != null ? {
-            "@odata.type"        = "#Microsoft.Azure.Search.DataUserAssignedIdentity"
-            userAssignedIdentity = var.customer_managed_key.user_assigned_identity.resource_id
-            } : {
-            "@odata.type" = "#Microsoft.Azure.Search.DataNoneIdentity"
+        serviceLevelEncryptionKey = merge(
+          {
+            keyVaultUri     = data.azurerm_key_vault.cmk[0].vault_uri
+            keyVaultKeyName = var.customer_managed_key.key_name
+            identity = {
+              "@odata.type" = "#Microsoft.Azure.Search.DataNoneIdentity"
+            }
+          },
+          var.customer_managed_key.key_version == null ? {} : {
+            keyVaultKeyVersion = var.customer_managed_key.key_version
           }
-        }
+        )
       }
     }
   }
