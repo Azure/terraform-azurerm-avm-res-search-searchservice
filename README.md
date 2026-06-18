@@ -13,6 +13,28 @@ Things to do:
 1. Configure federated identity credentials on the user assigned managed identity. Use the GitHub environment.
 1. Search and update TODOs within the code and remove the TODO comments once complete.
 
+## Customer-managed keys (CMK)
+
+> [!WARNING]
+> Service-level customer-managed key encryption on Azure AI Search is **only available in the `Microsoft.Search/searchServices@2026-03-01-preview` API**. Per [AVM SFR1](https://azure.github.io/Azure-Verified-Modules/spec/SFR1) the `customer_managed_key` variable is therefore exposed as a preview feature — Microsoft may not provide support for it. Review the [Azure AI Search CMK documentation](https://learn.microsoft.com/azure/search/search-security-manage-encryption-keys) before enabling it.
+
+When `customer_managed_key` is set, the module:
+
+1. Creates the Search Service via `azurerm_search_service` (which uses the stable `2025-05-01` API and has no `serviceLevelEncryptionKey` argument).
+2. Issues a follow-up PATCH via `azapi_update_resource` against the `2026-03-01-preview` API to populate `properties.encryptionWithCmk.serviceLevelEncryptionKey`.
+
+There is therefore a brief window between the create call returning and the PATCH applying during which the service is encrypted with Microsoft-managed keys. No search indexes or other encryptable objects exist during that window, so no user data is at rest under the platform key. On subsequent `terraform apply` runs the configuration is idempotent: `azurerm_search_service` uses an older API version that has no knowledge of `serviceLevelEncryptionKey` and so will not revert the CMK to a platform-managed key.
+
+Prerequisites the consumer is responsible for:
+
+- The Search Service must have a managed identity that can access the Key Vault key:
+  - If `customer_managed_key.user_assigned_identity` is `null`, the Search Service's system-assigned identity is used. Set `managed_identities.system_assigned = true` (enforced by variable validation).
+  - If `customer_managed_key.user_assigned_identity.resource_id` is set, that user-assigned identity is used.
+- The identity must be granted `get`, `wrapKey` and `unwrapKey` on the Key Vault key (access policies or the equivalent RBAC role, depending on the Key Vault's permission model).
+- Setting `customer_managed_key_enforcement_enabled = true` alongside `customer_managed_key` is recommended so the service rejects non-CMK-encrypted objects.
+
+A broader refactor that replaces `azurerm_search_service` with `azapi_resource` end-to-end (eliminating the brief platform-key window) is tracked separately.
+
 > [!IMPORTANT]
 > As the overall AVM framework is not GA (generally available) yet - the CI framework and test automation is not fully functional and implemented across all supported languages yet - breaking changes are expected, and additional customer feedback is yet to be gathered and incorporated. Hence, modules **MUST NOT** be published at version `1.0.0` or higher at this time.
 >
@@ -39,6 +61,7 @@ The following requirements are needed by this module:
 
 The following resources are used by this module:
 
+- [azapi_update_resource.cmk](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/update_resource) (resource)
 - [azurerm_management_lock.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/management_lock) (resource)
 - [azurerm_monitor_diagnostic_setting.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/monitor_diagnostic_setting) (resource)
 - [azurerm_private_endpoint.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/private_endpoint) (resource)
@@ -49,6 +72,7 @@ The following resources are used by this module:
 - [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
+- [azurerm_key_vault.cmk](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/key_vault) (data source)
 - [modtm_module_source.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/data-sources/module_source) (data source)
 
 <!-- markdownlint-disable MD013 -->
@@ -96,12 +120,20 @@ Default: `null`
 
 ### <a name="input_customer_managed_key"></a> [customer\_managed\_key](#input\_customer\_managed\_key)
 
-Description: A map describing customer-managed keys to associate with the resource. This includes the following properties:
+Description: THIS IS A VARIABLE USED FOR A PREVIEW SERVICE/FEATURE, MICROSOFT MAY NOT PROVIDE SUPPORT FOR THIS, PLEASE CHECK THE PRODUCT DOCS FOR CLARIFICATION.
+
+A map describing the customer-managed key (CMK) to associate with the Search Service. When set, the module patches the Search Service via the `Microsoft.Search/searchServices@2026-03-01-preview` API to populate `properties.encryptionWithCmk.serviceLevelEncryptionKey`. Service-level CMK on Azure AI Search is only available in this preview API version at the time of writing.
+
+Properties:
 - `key_vault_resource_id` - The resource ID of the Key Vault where the key is stored.
 - `key_name` - The name of the key.
-- `key_version` - (Optional) The version of the key. If not specified, the latest version is used.
-- `user_assigned_identity` - (Optional) An object representing a user-assigned identity with the following properties:
+- `key_version` - (Optional) The version of the key. If not specified, the latest (versionless) key URI is used.
+- `user_assigned_identity` - (Optional) A user-assigned managed identity to use for accessing the Key Vault key. If omitted, the Search Service's system-assigned managed identity is used (requires `managed_identities.system_assigned = true`).
   - `resource_id` - The resource ID of the user-assigned identity.
+
+The identity used (system- or user-assigned) MUST be granted `get`, `wrapKey` and `unwrapKey` permissions on the Key Vault key (either via access policies or RBAC, depending on the Key Vault's permission model). See the [Azure AI Search CMK documentation](https://learn.microsoft.com/azure/search/search-security-manage-encryption-keys) for prerequisites.
+
+Note: when CMK is configured the Search Service is briefly created with Microsoft-managed encryption before the PATCH applies the CMK. No search indexes or other encryptable objects exist during that window.
 
 Type:
 
@@ -319,6 +351,46 @@ Type: `number`
 
 Default: `1`
 
+### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
+
+Description: Map of Azure resource type API versions for any `azapi_*` resources this module declares (see [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6)).
+
+- `search_searchservices` - (Optional) API version used for the `azapi_update_resource` that patches the Search Service with `customer_managed_key`. Defaults to `2026-03-01-preview`, the only API version that exposes `properties.encryptionWithCmk.serviceLevelEncryptionKey` at the time of writing.
+
+Type:
+
+```hcl
+object({
+    search_searchservices = optional(string, "2026-03-01-preview")
+  })
+```
+
+Default: `{}`
+
+### <a name="input_retry"></a> [retry](#input\_retry)
+
+Description: The retry block supports the following arguments applied to every `azapi_*` resource declared by this module (see [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)).
+
+- `error_message_regex` - (Optional) A list of regular expressions to match against error messages. If any of the regular expressions match, the error is considered retryable.
+- `interval_seconds` - (Optional) The base number of seconds to wait between retries. Defaults to `10`.
+- `max_interval_seconds` - (Optional) The maximum number of seconds to wait between retries. Defaults to `180`.
+- `multiplier` - (Optional) The multiplier to apply to the interval between retries. Defaults to `1.5`.
+- `randomization_factor` - (Optional) The randomization factor to apply to the interval between retries. The formula is `interval_seconds * (random value in [1 - randomization_factor, 1 + randomization_factor])`. Defaults to `0.5`.
+
+Type:
+
+```hcl
+object({
+    error_message_regex  = optional(list(string), null)
+    interval_seconds     = optional(number, null)
+    max_interval_seconds = optional(number, null)
+    multiplier           = optional(number, null)
+    randomization_factor = optional(number, null)
+  })
+```
+
+Default: `null`
+
 ### <a name="input_role_assignments"></a> [role\_assignments](#input\_role\_assignments)
 
 Description: A map of role assignments to create on this resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
@@ -370,6 +442,28 @@ Default: `"standard"`
 Description: (Optional) Tags of the resource.
 
 Type: `map(string)`
+
+Default: `null`
+
+### <a name="input_timeouts"></a> [timeouts](#input\_timeouts)
+
+Description: The timeouts block applied to every `azapi_*` resource declared by this module (see [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)). Each field is a Go duration string.
+
+- `create` - (Optional) The timeout for creating the resource.
+- `delete` - (Optional) The timeout for deleting the resource.
+- `read` - (Optional) The timeout for reading the resource.
+- `update` - (Optional) The timeout for updating the resource.
+
+Type:
+
+```hcl
+object({
+    create = optional(string, null)
+    delete = optional(string, null)
+    read   = optional(string, null)
+    update = optional(string, null)
+  })
+```
 
 Default: `null`
 

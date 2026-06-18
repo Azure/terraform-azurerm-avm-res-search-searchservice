@@ -31,5 +31,15 @@ locals {
     ]
   ]) : "${assoc.pe_key}-${assoc.asg_key}" => assoc }
   role_definition_resource_substring = "/providers/Microsoft.Authorization/roleDefinitions"
+
+  # Parsed Key Vault identifiers used by the CMK PATCH (main.cmk.tf). The data source
+  # needs name + resource group; the variable only takes the resource ID for consumer
+  # ergonomics and AVM interface consistency.
+  cmk_key_vault_resource_id_parts = var.customer_managed_key == null ? null : regex(
+    "^/subscriptions/[^/]+/resourceGroups/(?P<rg>[^/]+)/providers/Microsoft\\.KeyVault/vaults/(?P<name>[^/]+)$",
+    var.customer_managed_key.key_vault_resource_id,
+  )
+  cmk_key_vault_name                = try(local.cmk_key_vault_resource_id_parts.name, null)
+  cmk_key_vault_resource_group_name = try(local.cmk_key_vault_resource_id_parts.rg, null)
 }
 

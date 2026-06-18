@@ -28,8 +28,6 @@ variable "authentication_failure_mode" {
 }
 
 # required AVM interfaces
-# remove only if not supported by the resource
-# tflint-ignore: terraform_unused_declarations
 variable "customer_managed_key" {
   type = object({
     key_vault_resource_id = string
@@ -41,13 +39,26 @@ variable "customer_managed_key" {
   })
   default     = null
   description = <<DESCRIPTION
-A map describing customer-managed keys to associate with the resource. This includes the following properties:
+THIS IS A VARIABLE USED FOR A PREVIEW SERVICE/FEATURE, MICROSOFT MAY NOT PROVIDE SUPPORT FOR THIS, PLEASE CHECK THE PRODUCT DOCS FOR CLARIFICATION.
+
+A map describing the customer-managed key (CMK) to associate with the Search Service. When set, the module patches the Search Service via the `Microsoft.Search/searchServices@2026-03-01-preview` API to populate `properties.encryptionWithCmk.serviceLevelEncryptionKey`. Service-level CMK on Azure AI Search is only available in this preview API version at the time of writing.
+
+Properties:
 - `key_vault_resource_id` - The resource ID of the Key Vault where the key is stored.
 - `key_name` - The name of the key.
-- `key_version` - (Optional) The version of the key. If not specified, the latest version is used.
-- `user_assigned_identity` - (Optional) An object representing a user-assigned identity with the following properties:
+- `key_version` - (Optional) The version of the key. If not specified, the latest (versionless) key URI is used.
+- `user_assigned_identity` - (Optional) A user-assigned managed identity to use for accessing the Key Vault key. If omitted, the Search Service's system-assigned managed identity is used (requires `managed_identities.system_assigned = true`).
   - `resource_id` - The resource ID of the user-assigned identity.
+
+The identity used (system- or user-assigned) MUST be granted `get`, `wrapKey` and `unwrapKey` permissions on the Key Vault key (either via access policies or RBAC, depending on the Key Vault's permission model). See the [Azure AI Search CMK documentation](https://learn.microsoft.com/azure/search/search-security-manage-encryption-keys) for prerequisites.
+
+Note: when CMK is configured the Search Service is briefly created with Microsoft-managed encryption before the PATCH applies the CMK. No search indexes or other encryptable objects exist during that window.
 DESCRIPTION
+
+  validation {
+    condition     = var.customer_managed_key == null || var.customer_managed_key.user_assigned_identity != null || var.managed_identities.system_assigned
+    error_message = "When `customer_managed_key` is set without `user_assigned_identity`, `managed_identities.system_assigned` must be `true` so the Search Service can authenticate to Key Vault."
+  }
 }
 
 variable "customer_managed_key_enforcement_enabled" {
@@ -254,6 +265,39 @@ variable "replica_count" {
   }
 }
 
+variable "resource_types" {
+  type = object({
+    search_searchservices = optional(string, "2026-03-01-preview")
+  })
+  default     = {}
+  description = <<DESCRIPTION
+Map of Azure resource type API versions for any `azapi_*` resources this module declares (see [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6)).
+
+- `search_searchservices` - (Optional) API version used for the `azapi_update_resource` that patches the Search Service with `customer_managed_key`. Defaults to `2026-03-01-preview`, the only API version that exposes `properties.encryptionWithCmk.serviceLevelEncryptionKey` at the time of writing.
+DESCRIPTION
+  nullable    = false
+}
+
+variable "retry" {
+  type = object({
+    error_message_regex  = optional(list(string), null)
+    interval_seconds     = optional(number, null)
+    max_interval_seconds = optional(number, null)
+    multiplier           = optional(number, null)
+    randomization_factor = optional(number, null)
+  })
+  default     = null
+  description = <<DESCRIPTION
+The retry block supports the following arguments applied to every `azapi_*` resource declared by this module (see [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)).
+
+- `error_message_regex` - (Optional) A list of regular expressions to match against error messages. If any of the regular expressions match, the error is considered retryable.
+- `interval_seconds` - (Optional) The base number of seconds to wait between retries. Defaults to `10`.
+- `max_interval_seconds` - (Optional) The maximum number of seconds to wait between retries. Defaults to `180`.
+- `multiplier` - (Optional) The multiplier to apply to the interval between retries. Defaults to `1.5`.
+- `randomization_factor` - (Optional) The randomization factor to apply to the interval between retries. The formula is `interval_seconds * (random value in [1 - randomization_factor, 1 + randomization_factor])`. Defaults to `0.5`.
+DESCRIPTION
+}
+
 variable "role_assignments" {
   type = map(object({
     role_definition_id_or_name             = string
@@ -303,4 +347,22 @@ variable "tags" {
   type        = map(string)
   default     = null
   description = "(Optional) Tags of the resource."
+}
+
+variable "timeouts" {
+  type = object({
+    create = optional(string, null)
+    delete = optional(string, null)
+    read   = optional(string, null)
+    update = optional(string, null)
+  })
+  default     = null
+  description = <<DESCRIPTION
+The timeouts block applied to every `azapi_*` resource declared by this module (see [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)). Each field is a Go duration string.
+
+- `create` - (Optional) The timeout for creating the resource.
+- `delete` - (Optional) The timeout for deleting the resource.
+- `read` - (Optional) The timeout for reading the resource.
+- `update` - (Optional) The timeout for updating the resource.
+DESCRIPTION
 }
