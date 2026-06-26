@@ -40,3 +40,10 @@ moved {
   from = azurerm_private_endpoint.this
   to   = module.private_endpoint.azapi_resource.this
 }
+
+# Customer-managed keys: the 0.3.x release already applied CMK via a root-level
+# `azapi_update_resource.cmk[0]` (see main.cmk.tf). That address is unchanged in
+# this release, so no `moved` block is required — the existing state entry is
+# reused and the only first-plan delta is an in-place PATCH (e.g. enforcement
+# now travels with the key). The 0.3.x `data.azurerm_key_vault.cmk` data source
+# is removed and needs no migration.

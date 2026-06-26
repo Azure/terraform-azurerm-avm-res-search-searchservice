@@ -25,31 +25,46 @@ locals {
       aadAuthFailureMode = var.authentication_failure_mode
     }
   }
-  # Service-level CMK key configuration is only available on preview API
-  # versions of Microsoft.Search/searchServices (2024-06-01-preview onwards
-  # at time of writing). On the default stable API only `enforcement` is
-  # accepted; consumers wanting full service-level CMK key configuration
-  # must override `var.resource_types.search_search_services` to a preview
-  # API version.
-  cmk_api_supports_service_level_key = can(regex("-preview$", var.resource_types.search_search_services))
   # ---------------------------------------------------------------------------
-  # Customer-managed key body
+  # Customer-managed key (CMK) body.
+  #
+  # The writable `properties.encryptionWithCmk` block — both the `enforcement`
+  # policy and the `serviceLevelEncryptionKey` configuration — only exists on
+  # PREVIEW API versions of Microsoft.Search/searchServices (2024-06-01-preview
+  # onwards). On the stable API used by the primary `azapi_resource.this`,
+  # `enforcement` is a read-only status field and `serviceLevelEncryptionKey`
+  # does not exist at all. We therefore keep the primary resource on the stable
+  # GA API (SFR1) and apply this whole block via a dedicated preview-API
+  # `azapi_update_resource` (see main.cmk.tf). This body is consumed there, not
+  # in the primary resource body.
   # ---------------------------------------------------------------------------
   cmk_enforcement = var.customer_managed_key_enforcement_enabled == null ? null : (
     var.customer_managed_key_enforcement_enabled ? "Enabled" : "Disabled"
   )
-  cmk_identity_body = var.customer_managed_key == null || var.customer_managed_key.user_assigned_identity == null ? null : {
-    "@odata.type"        = "#Microsoft.Azure.Search.DataUserAssignedIdentity"
-    userAssignedIdentity = var.customer_managed_key.user_assigned_identity.resource_id
-  }
-  cmk_service_level_key = (
-    var.customer_managed_key == null || !local.cmk_api_supports_service_level_key
-    ) ? null : {
-    keyVaultUri        = "https://${reverse(split("/", var.customer_managed_key.key_vault_resource_id))[0]}.vault.azure.net"
-    keyVaultKeyName    = var.customer_managed_key.key_name
-    keyVaultKeyVersion = var.customer_managed_key.key_version
-    identity           = local.cmk_identity_body
-  }
+  # When a user-assigned identity is supplied the Search Service uses it to
+  # reach Key Vault; otherwise it falls back to its system-assigned identity,
+  # signalled to ARM with the DataNoneIdentity discriminator.
+  cmk_identity_body = var.customer_managed_key == null ? null : (
+    var.customer_managed_key.user_assigned_identity == null ? {
+      "@odata.type" = "#Microsoft.Azure.Search.DataNoneIdentity"
+      } : {
+      "@odata.type"        = "#Microsoft.Azure.Search.DataUserAssignedIdentity"
+      userAssignedIdentity = var.customer_managed_key.user_assigned_identity.resource_id
+    }
+  )
+  cmk_service_level_key = var.customer_managed_key == null ? null : merge(
+    {
+      # ARM normalises the vault URI with a trailing slash and the 0.3.x release
+      # sourced it from data.azurerm_key_vault.vault_uri (same form). Match that
+      # exactly so the value is idempotent on read and migrates without drift.
+      keyVaultUri     = "https://${reverse(split("/", var.customer_managed_key.key_vault_resource_id))[0]}.vault.azure.net/"
+      keyVaultKeyName = var.customer_managed_key.key_name
+      identity        = local.cmk_identity_body
+    },
+    var.customer_managed_key.key_version == null ? {} : {
+      keyVaultKeyVersion = var.customer_managed_key.key_version
+    }
+  )
   encryption_with_cmk_body = (
     local.cmk_enforcement == null && local.cmk_service_level_key == null
     ) ? null : merge(
@@ -122,11 +137,15 @@ locals {
   # Properties body for the search service.
   # Null-valued keys are stripped so we never PUT a null that Azure echoes
   # back as a server default — which would oscillate plans forever.
+  #
+  # Note: `encryptionWithCmk` is intentionally NOT set here. The whole writable
+  # CMK block requires a preview API and is applied by the dedicated
+  # `azapi_update_resource.cmk` (see main.cmk.tf) so the primary resource can
+  # stay on the stable GA API.
   # ---------------------------------------------------------------------------
   search_service_properties = { for k, v in {
     authOptions         = local.auth_options_body
     disableLocalAuth    = var.local_authentication_enabled == null ? null : !var.local_authentication_enabled
-    encryptionWithCmk   = local.encryption_with_cmk_body
     hostingMode         = local.hosting_mode_normalised
     networkRuleSet      = local.network_rule_set
     partitionCount      = var.partition_count

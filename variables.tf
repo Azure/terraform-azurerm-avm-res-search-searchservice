@@ -60,8 +60,10 @@ variable "customer_managed_key" {
   description = <<DESCRIPTION
 (Optional) A customer-managed key configuration to associate with the Search Service. Maps to `properties.encryptionWithCmk.serviceLevelEncryptionKey`.
 
-> [!IMPORTANT]
-> Service-level CMK key configuration is currently only accepted on **preview** API versions of `Microsoft.Search/searchServices` (2024-06-01-preview onwards). When using the default stable API version, only `customer_managed_key_enforcement_enabled` is honoured and the key/version fields are silently ignored. To activate full service-level CMK, override `var.resource_types.search_search_services` to a preview API version (e.g. `"Microsoft.Search/searchServices@2026-03-01-preview"`).
+The Search Service must be able to authenticate to the Key Vault to use the key: either pass a `user_assigned_identity` (which must also be one of `managed_identities.user_assigned_resource_ids`) or enable `managed_identities.system_assigned = true`. Granting that identity access to the Key Vault (e.g. the `Key Vault Crypto Service Encryption User` role) is the consumer's responsibility and must be in place before the key is applied.
+
+> [!NOTE]
+> The writable `encryptionWithCmk` block is only available on preview API versions of `Microsoft.Search/searchServices`, so the module applies it through a dedicated `azapi_update_resource` pinned to `var.resource_types.search_search_services_cmk` (default `2026-03-01-preview`) while the primary resource stays on the stable API.
 
 - `key_vault_resource_id` - (Required) The Azure resource ID of the Key Vault containing the key.
 - `key_name`              - (Required) The name of the key in the Key Vault.
@@ -78,12 +80,24 @@ DESCRIPTION
     condition     = try(var.customer_managed_key.user_assigned_identity, null) == null || can(provider::azapi::parse_resource_id("Microsoft.ManagedIdentity/userAssignedIdentities", try(var.customer_managed_key.user_assigned_identity.resource_id, "")))
     error_message = "`customer_managed_key.user_assigned_identity.resource_id` must be a valid user-assigned managed identity resource ID."
   }
+  validation {
+    condition     = try(var.customer_managed_key.user_assigned_identity, null) == null || contains(var.managed_identities.user_assigned_resource_ids, try(var.customer_managed_key.user_assigned_identity.resource_id, ""))
+    error_message = "`customer_managed_key.user_assigned_identity.resource_id` must be one of `managed_identities.user_assigned_resource_ids` so the identity is actually assigned to the Search Service."
+  }
+  validation {
+    condition     = var.customer_managed_key == null || var.customer_managed_key.user_assigned_identity != null || var.managed_identities.system_assigned
+    error_message = "When `customer_managed_key` is set without `user_assigned_identity`, `managed_identities.system_assigned` must be `true` so the Search Service can authenticate to Key Vault."
+  }
+  validation {
+    condition     = var.customer_managed_key == null || can(regex("-preview$", var.resource_types.search_search_services_cmk))
+    error_message = "`resource_types.search_search_services_cmk` must be a `-preview` API version because the writable `encryptionWithCmk.serviceLevelEncryptionKey` is only available on preview versions of `Microsoft.Search/searchServices`."
+  }
 }
 
 variable "customer_managed_key_enforcement_enabled" {
   type        = bool
   default     = null
-  description = "(Optional) Whether the Search Service should enforce that all dependent resources are encrypted with the customer-managed key. Maps to `properties.encryptionWithCmk.enforcement` (`Enabled`/`Disabled`)."
+  description = "(Optional) Whether the Search Service should enforce that all dependent resources are encrypted with the customer-managed key. Maps to `properties.encryptionWithCmk.enforcement` (`Enabled`/`Disabled`). Applied via the dedicated preview-API `azapi_update_resource` (see `customer_managed_key`)."
 }
 
 variable "diagnostic_settings" {
@@ -351,6 +365,7 @@ variable "replica_count" {
 variable "resource_types" {
   type = object({
     search_search_services                            = optional(string, "Microsoft.Search/searchServices@2025-05-01")
+    search_search_services_cmk                        = optional(string, "Microsoft.Search/searchServices@2026-03-01-preview")
     authorization_locks                               = optional(string, "Microsoft.Authorization/locks@2020-05-01")
     authorization_role_assignments                    = optional(string, "Microsoft.Authorization/roleAssignments@2022-04-01")
     insights_diagnostic_settings                      = optional(string, "Microsoft.Insights/diagnosticSettings@2021-05-01-preview")
@@ -359,9 +374,10 @@ variable "resource_types" {
   })
   default     = {}
   description = <<DESCRIPTION
-(Optional) Override the AzAPI `type` values used by the module. See [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6). Each key defaults to the latest stable API version the module has been tested against; override only when you need to pin to a specific API version.
+(Optional) Override the AzAPI `type` values used by the module. See [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6). Each key defaults to the latest stable API version the module has been tested against (a preview version is used only where a feature is not yet available on a stable API); override only when you need to pin to a specific API version.
 
 - `search_search_services` - The primary `Microsoft.Search/searchServices` resource.
+- `search_search_services_cmk` - THIS IS A VARIABLE USED FOR A PREVIEW SERVICE/FEATURE, MICROSOFT MAY NOT PROVIDE SUPPORT FOR THIS, PLEASE CHECK THE PRODUCT DOCS FOR CLARIFICATION. The preview `Microsoft.Search/searchServices` API version used by the dedicated `azapi_update_resource` that applies `customer_managed_key` / `customer_managed_key_enforcement_enabled`. The writable `properties.encryptionWithCmk` block (the `enforcement` policy and the service-level encryption key) is only available on preview API versions, so this MUST be a `-preview` version. The primary resource stays on the stable `search_search_services` API.
 - `authorization_locks` - The lock resource used to implement `var.lock`.
 - `authorization_role_assignments` - The role assignment resource used to implement `var.role_assignments`.
 - `insights_diagnostic_settings` - The diagnostic setting resource used to implement `var.diagnostic_settings`.

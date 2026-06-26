@@ -42,15 +42,9 @@ resource "azapi_resource" "this" {
     "properties.endpoint",
   ]
   retry = var.retry
-  # The AzAPI provider's embedded schema for `Microsoft.Search/searchServices`
-  # does not yet recognise the preview `serviceLevelEncryptionKey` field. When
-  # the consumer has opted into service-level CMK (which already requires a
-  # preview API version via `var.resource_types.search_search_services`) we
-  # bypass embedded schema validation; Azure Resource Manager still validates
-  # the body server-side.
-  schema_validation_enabled = local.cmk_service_level_key == null
-  tags                      = var.tags
-  update_headers            = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  tags  = var.tags
+
+  update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
 
   dynamic "timeouts" {
     for_each = var.timeouts == null ? [] : [var.timeouts]

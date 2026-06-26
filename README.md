@@ -37,6 +37,8 @@
 >
 > - New `parent_id` variable ([TFRMFR1](https://azure.github.io/Azure-Verified-Modules/spec/TFRMFR1)) replaces `resource_group_name`. The `location` input is unchanged.
 > - New `resource_types`, `retry`, and `timeouts` variables ([TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6), [TFFR7](https://azure.github.io/Azure-Verified-Modules/spec/TFFR7)) — all default sensibly, no input changes required for typical usage.
+> - **Customer-managed keys — no action required.** The `0.3.x` release already applied CMK through a root-level `azapi_update_resource.cmk[0]` PATCH; that address is unchanged, so the state entry is reused with no destroy / re-create. The `0.3.x` `data.azurerm_key_vault.cmk` lookup is removed (the Key Vault URI is now derived from `customer_managed_key.key_vault_resource_id`). The writable `encryptionWithCmk` block (both the `enforcement` policy and the service-level key) is only available on preview API versions, so the PATCH is pinned to `var.resource_types.search_search_services_cmk` (default `Microsoft.Search/searchServices@2026-03-01-preview`) while the primary resource stays on the stable `search_search_services` API ([SFR1](https://azure.github.io/Azure-Verified-Modules/spec/SFR1)). On the first `apply` after upgrade you may see a single in-place PATCH as `enforcement` moves from the search service body onto the CMK update resource.
+>   - If you grant the search service's **system-assigned** identity Key Vault access for CMK, note that the principal is now exposed via `output.system_assigned_principal_id` (was `output.resource.identity[0].principal_id`). Because that output is recomputed during the AzureRM→AzAPI state move, any of **your own** resources that reference it (e.g. a Key Vault role assignment) may be recreated with the same principal on the migration `apply`. The search service itself is updated in place — it is never re-created — and the CMK key configuration is preserved throughout. This was verified end-to-end by deploying `0.3.0` with CMK and upgrading in place: the search service migrated with no replacement and the post-upgrade `plan` reported no changes.
 > - Output shapes: `output.resource` and `output.private_endpoints` now wrap `azapi_resource` objects rather than `azurerm_search_service` / `azurerm_private_endpoint`. Downstream code should read `output.resource_id` (unchanged) where possible.
 
 This module deploys an **Azure AI Search** service (`Microsoft.Search/searchServices`) along with the standard AVM cross-cutting interfaces it supports: `diagnostic_settings`, `role_assignments`, `lock`, `tags`, `managed_identities` (system- and user-assigned), `private_endpoints`, and `customer_managed_key`.
@@ -48,7 +50,7 @@ This module deploys an **Azure AI Search** service (`Microsoft.Search/searchServ
 - 🔑 **Service-level customer-managed keys** with optional user-assigned identity for Key Vault access.
 - 🌐 **Private endpoints** with per-endpoint DNS zone group management.
 - 📊 **Diagnostic settings** to Log Analytics, storage, Event Hub or partner solution.
-- 🛡️ **AzAPI-first** — built entirely on `Microsoft.Search/searchServices@2025-05-01` plus the standard AzAPI interface resources. No AzureRM provider required.
+- 🛡️ **AzAPI-first** — built on `Microsoft.Search/searchServices@2025-05-01` (with a preview-API `azapi_update_resource` for customer-managed keys) plus the standard AzAPI interface resources. No AzureRM provider required.
 
 > [!NOTE]
 > As the AVM framework is not yet GA, this module is published as a pre-release `0.x.y` version per [SNFR12](https://azure.github.io/Azure-Verified-Modules/spec/SNFR12). Breaking changes may still occur between minor versions.
@@ -71,6 +73,7 @@ The following requirements are needed by this module:
 The following resources are used by this module:
 
 - [azapi_resource.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
+- [azapi_update_resource.cmk](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/update_resource) (resource)
 - [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) (resource)
 - [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
 - [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
@@ -127,8 +130,10 @@ Default: `null`
 
 Description: (Optional) A customer-managed key configuration to associate with the Search Service. Maps to `properties.encryptionWithCmk.serviceLevelEncryptionKey`.
 
-> [!IMPORTANT]
-> Service-level CMK key configuration is currently only accepted on **preview** API versions of `Microsoft.Search/searchServices` (2024-06-01-preview onwards). When using the default stable API version, only `customer_managed_key_enforcement_enabled` is honoured and the key/version fields are silently ignored. To activate full service-level CMK, override `var.resource_types.search_search_services` to a preview API version (e.g. `"Microsoft.Search/searchServices@2026-03-01-preview"`).
+The Search Service must be able to authenticate to the Key Vault to use the key: either pass a `user_assigned_identity` (which must also be one of `managed_identities.user_assigned_resource_ids`) or enable `managed_identities.system_assigned = true`. Granting that identity access to the Key Vault (e.g. the `Key Vault Crypto Service Encryption User` role) is the consumer's responsibility and must be in place before the key is applied.
+
+> [!NOTE]
+> The writable `encryptionWithCmk` block is only available on preview API versions of `Microsoft.Search/searchServices`, so the module applies it through a dedicated `azapi_update_resource` pinned to `var.resource_types.search_search_services_cmk` (default `2026-03-01-preview`) while the primary resource stays on the stable API.
 
 - `key_vault_resource_id` - (Required) The Azure resource ID of the Key Vault containing the key.
 - `key_name`              - (Required) The name of the key in the Key Vault.
@@ -153,7 +158,7 @@ Default: `null`
 
 ### <a name="input_customer_managed_key_enforcement_enabled"></a> [customer\_managed\_key\_enforcement\_enabled](#input\_customer\_managed\_key\_enforcement\_enabled)
 
-Description: (Optional) Whether the Search Service should enforce that all dependent resources are encrypted with the customer-managed key. Maps to `properties.encryptionWithCmk.enforcement` (`Enabled`/`Disabled`).
+Description: (Optional) Whether the Search Service should enforce that all dependent resources are encrypted with the customer-managed key. Maps to `properties.encryptionWithCmk.enforcement` (`Enabled`/`Disabled`). Applied via the dedicated preview-API `azapi_update_resource` (see `customer_managed_key`).
 
 Type: `bool`
 
@@ -346,9 +351,10 @@ Default: `1`
 
 ### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
 
-Description: (Optional) Override the AzAPI `type` values used by the module. See [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6). Each key defaults to the latest stable API version the module has been tested against; override only when you need to pin to a specific API version.
+Description: (Optional) Override the AzAPI `type` values used by the module. See [TFFR6](https://azure.github.io/Azure-Verified-Modules/spec/TFFR6). Each key defaults to the latest stable API version the module has been tested against (a preview version is used only where a feature is not yet available on a stable API); override only when you need to pin to a specific API version.
 
 - `search_search_services` - The primary `Microsoft.Search/searchServices` resource.
+- `search_search_services_cmk` - THIS IS A VARIABLE USED FOR A PREVIEW SERVICE/FEATURE, MICROSOFT MAY NOT PROVIDE SUPPORT FOR THIS, PLEASE CHECK THE PRODUCT DOCS FOR CLARIFICATION. The preview `Microsoft.Search/searchServices` API version used by the dedicated `azapi_update_resource` that applies `customer_managed_key` / `customer_managed_key_enforcement_enabled`. The writable `properties.encryptionWithCmk` block (the `enforcement` policy and the service-level encryption key) is only available on preview API versions, so this MUST be a `-preview` version. The primary resource stays on the stable `search_search_services` API.
 - `authorization_locks` - The lock resource used to implement `var.lock`.
 - `authorization_role_assignments` - The role assignment resource used to implement `var.role_assignments`.
 - `insights_diagnostic_settings` - The diagnostic setting resource used to implement `var.diagnostic_settings`.
@@ -360,6 +366,7 @@ Type:
 ```hcl
 object({
     search_search_services                            = optional(string, "Microsoft.Search/searchServices@2025-05-01")
+    search_search_services_cmk                        = optional(string, "Microsoft.Search/searchServices@2026-03-01-preview")
     authorization_locks                               = optional(string, "Microsoft.Authorization/locks@2020-05-01")
     authorization_role_assignments                    = optional(string, "Microsoft.Authorization/roleAssignments@2022-04-01")
     insights_diagnostic_settings                      = optional(string, "Microsoft.Insights/diagnosticSettings@2021-05-01-preview")

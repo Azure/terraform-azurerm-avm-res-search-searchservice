@@ -341,10 +341,6 @@ run "customer_managed_key" {
   command = apply
 
   variables {
-    # Service-level CMK key config requires a preview API version.
-    resource_types = {
-      search_search_services = "Microsoft.Search/searchServices@2025-02-01-preview"
-    }
     customer_managed_key_enforcement_enabled = true
     customer_managed_key = {
       key_vault_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
@@ -361,50 +357,158 @@ run "customer_managed_key" {
     }
   }
 
+  # CMK is applied via a dedicated preview-API azapi_update_resource, NOT the
+  # stable primary resource body.
   assert {
-    condition     = azapi_resource.this.body.properties.encryptionWithCmk.enforcement == "Enabled"
+    condition     = length(azapi_update_resource.cmk) == 1
+    error_message = "The CMK azapi_update_resource MUST be created when customer_managed_key is set."
+  }
+
+  assert {
+    condition     = azapi_update_resource.cmk[0].type == "Microsoft.Search/searchServices@2026-03-01-preview"
+    error_message = "The CMK patch MUST use the preview type from var.resource_types.search_search_services_cmk (TFFR6)."
+  }
+
+  assert {
+    condition     = !can(azapi_resource.this.body.properties.encryptionWithCmk)
+    error_message = "encryptionWithCmk MUST NOT be set on the stable primary resource body."
+  }
+
+  assert {
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.enforcement == "Enabled"
     error_message = "CMK enforcement should be 'Enabled' when customer_managed_key_enforcement_enabled is true."
   }
 
   assert {
-    condition     = azapi_resource.this.body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultKeyName == "search-cmk"
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultKeyName == "search-cmk"
     error_message = "keyVaultKeyName should be propagated from customer_managed_key.key_name."
   }
 
   assert {
-    condition     = azapi_resource.this.body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultUri == "https://kv-test.vault.azure.net"
-    error_message = "keyVaultUri should be derived from the Key Vault resource ID."
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultKeyVersion == "01abcdef"
+    error_message = "keyVaultKeyVersion should be propagated from customer_managed_key.key_version."
   }
 
   assert {
-    condition     = azapi_resource.this.body.properties.encryptionWithCmk.serviceLevelEncryptionKey.identity["@odata.type"] == "#Microsoft.Azure.Search.DataUserAssignedIdentity"
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultUri == "https://kv-test.vault.azure.net/"
+    error_message = "keyVaultUri should be derived from the Key Vault resource ID (ARM-normalised with a trailing slash)."
+  }
+
+  assert {
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.identity["@odata.type"] == "#Microsoft.Azure.Search.DataUserAssignedIdentity"
     error_message = "CMK identity should be a DataUserAssignedIdentity when a user-assigned identity is supplied."
   }
 }
 
-# When using the stable default API version, service-level CMK key config
-# is silently dropped (the stable API only accepts enforcement). Verify that
-# enforcement still flows through and the key block is omitted.
-run "customer_managed_key_stable_api_enforcement_only" {
+# System-assigned identity path: no user_assigned_identity, no key_version.
+run "customer_managed_key_system_assigned" {
   command = apply
 
   variables {
-    customer_managed_key_enforcement_enabled = true
+    customer_managed_key = {
+      key_vault_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
+      key_name              = "search-cmk"
+    }
+    managed_identities = {
+      system_assigned = true
+    }
+  }
+
+  assert {
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.identity["@odata.type"] == "#Microsoft.Azure.Search.DataNoneIdentity"
+    error_message = "CMK identity should be a DataNoneIdentity (system-assigned) when no user-assigned identity is supplied."
+  }
+
+  assert {
+    condition     = !can(azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultKeyVersion)
+    error_message = "keyVaultKeyVersion MUST be omitted when customer_managed_key.key_version is null."
+  }
+}
+
+# Enforcement-only: no key block, just the enforcement policy.
+run "customer_managed_key_enforcement_only" {
+  command = apply
+
+  variables {
+    customer_managed_key_enforcement_enabled = false
+  }
+
+  assert {
+    condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.enforcement == "Disabled"
+    error_message = "enforcement should be 'Disabled' when customer_managed_key_enforcement_enabled is false."
+  }
+
+  assert {
+    condition     = !can(azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey)
+    error_message = "serviceLevelEncryptionKey MUST be omitted when no customer_managed_key is supplied."
+  }
+}
+
+# No CMK and no enforcement: the patch resource must not be created at all.
+run "customer_managed_key_absent" {
+  command = apply
+
+  assert {
+    condition     = length(azapi_update_resource.cmk) == 0
+    error_message = "The CMK azapi_update_resource MUST NOT be created when neither customer_managed_key nor enforcement is set."
+  }
+}
+
+# CMK without a usable identity must be rejected at plan time.
+run "customer_managed_key_requires_identity" {
+  command = plan
+
+  variables {
     customer_managed_key = {
       key_vault_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
       key_name              = "search-cmk"
     }
   }
 
-  assert {
-    condition     = azapi_resource.this.body.properties.encryptionWithCmk.enforcement == "Enabled"
-    error_message = "CMK enforcement should flow through even on the stable API."
+  expect_failures = [var.customer_managed_key]
+}
+
+# Overriding the CMK patch API to a stable version must be rejected.
+run "customer_managed_key_requires_preview_api" {
+  command = plan
+
+  variables {
+    resource_types = {
+      search_search_services_cmk = "Microsoft.Search/searchServices@2025-05-01"
+    }
+    managed_identities = {
+      system_assigned = true
+    }
+    customer_managed_key = {
+      key_vault_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
+      key_name              = "search-cmk"
+    }
   }
 
-  assert {
-    condition     = !contains(keys(azapi_resource.this.body.properties.encryptionWithCmk), "serviceLevelEncryptionKey")
-    error_message = "serviceLevelEncryptionKey body MUST be omitted on the stable API to satisfy schema validation."
+  expect_failures = [var.customer_managed_key]
+}
+
+# A user-assigned CMK identity that is not also assigned to the Search Service
+# must be rejected.
+run "customer_managed_key_uai_must_be_assigned" {
+  command = plan
+
+  variables {
+    customer_managed_key = {
+      key_vault_resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.KeyVault/vaults/kv-test"
+      key_name              = "search-cmk"
+      user_assigned_identity = {
+        resource_id = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-not-assigned"
+      }
+    }
+    managed_identities = {
+      user_assigned_resource_ids = [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.ManagedIdentity/userAssignedIdentities/uai-test"
+      ]
+    }
   }
+
+  expect_failures = [var.customer_managed_key]
 }
 
 run "hosting_mode_normalisation" {
