@@ -1,5 +1,22 @@
 # Azure Verified Module — Azure AI Search Service
 
+## Customer-managed keys (CMK)
+
+> [!WARNING]
+> Service-level customer-managed key encryption on Azure AI Search is **only available in preview API versions** of `Microsoft.Search/searchServices` (`2026-03-01-preview` at the time of writing). Per [AVM SFR1](https://azure.github.io/Azure-Verified-Modules/spec/SFR1) the `customer_managed_key` variable is therefore exposed as a preview feature — Microsoft may not provide support for it. Review the [Azure AI Search CMK documentation](https://learn.microsoft.com/azure/search/search-security-manage-encryption-keys) before enabling it.
+
+When `customer_managed_key` is set, the module keeps the primary `azapi_resource` on the stable GA API and applies the entire writable `properties.encryptionWithCmk` block (the `enforcement` policy and the `serviceLevelEncryptionKey`) via a dedicated `azapi_update_resource` pinned to a preview API (`var.resource_types.search_search_services_cmk`, default `Microsoft.Search/searchServices@2026-03-01-preview`). This keeps the primary resource on a stable API ([SFR1](https://azure.github.io/Azure-Verified-Modules/spec/SFR1)) while still configuring the preview-only key.
+
+There is a brief window between the service being created and the PATCH applying during which it is encrypted with Microsoft-managed keys. No search indexes or other encryptable objects exist during that window, so no user data is at rest under the platform key. The configuration is idempotent on subsequent `terraform apply` runs.
+
+Prerequisites the consumer is responsible for:
+
+- The Search Service must have a managed identity that can access the Key Vault key:
+  - If `customer_managed_key.user_assigned_identity` is `null`, the Search Service's system-assigned identity is used. Set `managed_identities.system_assigned = true` (enforced by variable validation).
+  - If `customer_managed_key.user_assigned_identity.resource_id` is set, that user-assigned identity is used. It must also be one of `managed_identities.user_assigned_resource_ids` (enforced by variable validation).
+- The identity must be granted `get`, `wrapKey` and `unwrapKey` on the Key Vault key (e.g. the `Key Vault Crypto Service Encryption User` RBAC role, or an equivalent access policy) **before** the key is applied.
+- Setting `customer_managed_key_enforcement_enabled = true` alongside `customer_managed_key` is recommended so the service rejects non-CMK-encrypted objects.
+
 > [!IMPORTANT]
 > **Breaking change — AzAPI migration.** Starting with the next minor release, this module is built on the [AzAPI provider](https://registry.terraform.io/providers/Azure/azapi/latest) per the AVM [TFFR3](https://azure.github.io/Azure-Verified-Modules/spec/TFFR3) AzAPI-first rule. The `azurerm` provider is no longer required.
 >

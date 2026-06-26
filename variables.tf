@@ -58,6 +58,8 @@ variable "customer_managed_key" {
   })
   default     = null
   description = <<DESCRIPTION
+THIS IS A VARIABLE USED FOR A PREVIEW SERVICE/FEATURE, MICROSOFT MAY NOT PROVIDE SUPPORT FOR THIS, PLEASE CHECK THE PRODUCT DOCS FOR CLARIFICATION.
+
 (Optional) A customer-managed key configuration to associate with the Search Service. Maps to `properties.encryptionWithCmk.serviceLevelEncryptionKey`.
 
 The Search Service must be able to authenticate to the Key Vault to use the key: either pass a `user_assigned_identity` (which must also be one of `managed_identities.user_assigned_resource_ids`) or enable `managed_identities.system_assigned = true`. Granting that identity access to the Key Vault (e.g. the `Key Vault Crypto Service Encryption User` role) is the consumer's responsibility and must be in place before the key is applied.
