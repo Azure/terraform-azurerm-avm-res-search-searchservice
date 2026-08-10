@@ -239,7 +239,6 @@ Source: ../../
 
 Version:
 
-
 <!-- markdownlint-disable-next-line MD041 -->
 ## Data Collection
 
