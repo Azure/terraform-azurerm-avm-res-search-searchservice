@@ -87,7 +87,7 @@ module "search_service" {
 
   location                                 = azurerm_resource_group.this.location
   name                                     = module.naming.search_service.name_unique
-  resource_group_name                      = azurerm_resource_group.this.name
+  parent_id                                = azurerm_resource_group.this.id
   customer_managed_key_enforcement_enabled = true
   enable_telemetry                         = var.enable_telemetry
   managed_identities = {
@@ -108,10 +108,9 @@ module "search_service" {
 # azapi_update_resource PATCH. In practice Azure validates key access lazily
 # (the PATCH returns OK and the service polls encryptionComplianceStatus), so
 # this ordering works today. If Azure tightens validation in future, callers
-# should switch to a pre-assigned user-assigned identity (tracked in the
-# broader azapi refactor).
+# should switch to a pre-assigned user-assigned identity.
 resource "azurerm_role_assignment" "search_kv" {
-  principal_id         = module.search_service.resource.identity[0].principal_id
+  principal_id         = module.search_service.system_assigned_principal_id
   scope                = azurerm_key_vault.this.id
   role_definition_name = "Key Vault Crypto Service Encryption User"
 }

@@ -1,55 +1,34 @@
-# Customer-managed key (CMK) support for the Search Service.
+# -----------------------------------------------------------------------------
+# Customer-managed key (CMK) encryption for the Search Service.
 #
-# Background:
-#   The hashicorp/azurerm provider's `azurerm_search_service` resource (which pins
-#   `Microsoft.Search/searchServices@2025-05-01`) does not expose any argument to set
-#   `properties.encryptionWithCmk.serviceLevelEncryptionKey`. That property only exists
-#   in the `2026-03-01-preview` API version. We therefore PATCH the freshly-created
-#   service with `azapi_update_resource` to apply the CMK configuration.
+# The writable `properties.encryptionWithCmk` block — both the `enforcement`
+# policy and the `serviceLevelEncryptionKey` configuration — is only available
+# on PREVIEW API versions of `Microsoft.Search/searchServices`
+# (2024-06-01-preview onwards). The primary `azapi_resource.this` is
+# intentionally pinned to the stable GA API (SFR1): on that API `enforcement`
+# is a read-only status field and `serviceLevelEncryptionKey` does not exist.
+# We therefore apply the entire CMK block here with a dedicated preview-API
+# PATCH, keeping the primary resource on the stable API.
 #
-# Idempotency:
-#   The PATCH only sets `properties.encryptionWithCmk.serviceLevelEncryptionKey`. The
-#   sibling `enforcement` field already managed by `azurerm_search_service` via
-#   `customer_managed_key_enforcement_enabled` is left untouched. Because the azurerm
-#   resource uses an older API version that has no knowledge of
-#   `serviceLevelEncryptionKey`, it will not drift the CMK setting back to
-#   service-managed encryption on subsequent applies.
-#
-# Tracking issue #107: this is the targeted 0.3 fix. A broader refactor that replaces
-# `azurerm_search_service` with `azapi_resource` is tracked separately.
-
-data "azurerm_key_vault" "cmk" {
-  count = var.customer_managed_key != null ? 1 : 0
-
-  name                = local.cmk_key_vault_name
-  resource_group_name = local.cmk_key_vault_resource_group_name
-}
+# Migration: this preserves the `azapi_update_resource.cmk[0]` address used by
+# the 0.3.x release, so upgrading consumers keep their CMK state in place with
+# no destroy / re-create. The 0.3.x `data.azurerm_key_vault.cmk` lookup is gone
+# — the Key Vault URI is now derived from `customer_managed_key.key_vault_resource_id`.
+# -----------------------------------------------------------------------------
 
 resource "azapi_update_resource" "cmk" {
-  count = var.customer_managed_key != null ? 1 : 0
+  count = local.encryption_with_cmk_body == null ? 0 : 1
 
-  resource_id = azurerm_search_service.this.id
-  type        = "Microsoft.Search/searchServices@${var.resource_types.search_searchservices}"
+  resource_id = azapi_resource.this.id
+  type        = var.resource_types.search_search_services_cmk
   body = {
     properties = {
-      encryptionWithCmk = {
-        serviceLevelEncryptionKey = merge(
-          {
-            keyVaultUri     = data.azurerm_key_vault.cmk[0].vault_uri
-            keyVaultKeyName = var.customer_managed_key.key_name
-            identity = {
-              "@odata.type" = "#Microsoft.Azure.Search.DataNoneIdentity"
-            }
-          },
-          var.customer_managed_key.key_version == null ? {} : {
-            keyVaultKeyVersion = var.customer_managed_key.key_version
-          }
-        )
-      }
+      encryptionWithCmk = local.encryption_with_cmk_body
     }
   }
-  read_headers   = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  retry          = var.retry
+  read_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  retry        = var.retry
+
   update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
 
   dynamic "timeouts" {
