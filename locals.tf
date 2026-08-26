@@ -1,44 +1,156 @@
-# TODO: insert locals here.
 locals {
-  # managed_identities = {
-  #   system_assigned_user_assigned = (var.managed_identities.system_assigned || length(var.managed_identities.user_assigned_resource_ids) > 0) ? {
-  #     this = {
-  #       type                       = var.managed_identities.system_assigned && length(var.managed_identities.user_assigned_resource_ids) > 0 ? "SystemAssigned, UserAssigned" : length(var.managed_identities.user_assigned_resource_ids) > 0 ? "UserAssigned" : "SystemAssigned"
-  #       user_assigned_resource_ids = var.managed_identities.user_assigned_resource_ids
-  #     }
-  #   } : {}
-  #   system_assigned = var.managed_identities.system_assigned ? {
-  #     this = {
-  #       type = "SystemAssigned"
-  #     }
-  #   } : {}
-  #   user_assigned = length(var.managed_identities.user_assigned_resource_ids) > 0 ? {
-  #     this = {
-  #       type                       = "UserAssigned"
-  #       user_assigned_resource_ids = var.managed_identities.user_assigned_resource_ids
-  #     }
-  #   } : {}
-  # }
-  # Private endpoint application security group associations
-  # We merge the nested maps from private endpoints and application security group associations into a single map.
-  private_endpoint_application_security_group_associations = { for assoc in flatten([
-    for pe_k, pe_v in var.private_endpoints : [
-      for asg_k, asg_v in pe_v.application_security_group_associations : {
-        asg_key         = asg_k
-        pe_key          = pe_k
-        asg_resource_id = asg_v
+  # ---------------------------------------------------------------------------
+  # Role definition resolution — shared across the root `role_assignments`
+  # and any per-private-endpoint role assignments.
+  # ---------------------------------------------------------------------------
+  # Flat key→assignment view of every role assignment in the module (both root
+  # and per-PE). Keys are guaranteed unique because PE-level keys are prefixed
+  # with the PE key.
+  all_role_assignments = merge(
+    var.role_assignments,
+    merge([
+      for pe_k, pe_v in var.private_endpoints : {
+        for ra_k, ra_v in pe_v.role_assignments :
+        "${pe_k}-${ra_k}" => ra_v
       }
-    ]
-  ]) : "${assoc.pe_key}-${assoc.asg_key}" => assoc }
-  role_definition_resource_substring = "/providers/Microsoft.Authorization/roleDefinitions"
-
-  # Parsed Key Vault identifiers used by the CMK PATCH (main.cmk.tf). The data source
-  # needs name + resource group; the variable only takes the resource ID for consumer
-  # ergonomics and AVM interface consistency.
-  cmk_key_vault_resource_id_parts = var.customer_managed_key == null ? null : regex(
-    "(?i)^/subscriptions/[^/]+/resourceGroups/(?P<rg>[^/]+)/providers/Microsoft\\.KeyVault/vaults/(?P<name>[^/]+)$",
-    var.customer_managed_key.key_vault_resource_id,
+    ]...)
   )
-  cmk_key_vault_name                = try(local.cmk_key_vault_resource_id_parts.name, null)
-  cmk_key_vault_resource_group_name = try(local.cmk_key_vault_resource_id_parts.rg, null)
+  # ---------------------------------------------------------------------------
+  # Auth options body (only valid when local auth enabled)
+  # ---------------------------------------------------------------------------
+  auth_options_body = (
+    var.local_authentication_enabled == false || var.authentication_failure_mode == null
+    ) ? null : {
+    aadOrApiKey = {
+      aadAuthFailureMode = var.authentication_failure_mode
+    }
+  }
+  # ---------------------------------------------------------------------------
+  # Customer-managed key (CMK) body.
+  #
+  # The writable `properties.encryptionWithCmk` block — both the `enforcement`
+  # policy and the `serviceLevelEncryptionKey` configuration — only exists on
+  # PREVIEW API versions of Microsoft.Search/searchServices (2024-06-01-preview
+  # onwards). On the stable API used by the primary `azapi_resource.this`,
+  # `enforcement` is a read-only status field and `serviceLevelEncryptionKey`
+  # does not exist at all. We therefore keep the primary resource on the stable
+  # GA API (SFR1) and apply this whole block via a dedicated preview-API
+  # `azapi_update_resource` (see main.cmk.tf). This body is consumed there, not
+  # in the primary resource body.
+  # ---------------------------------------------------------------------------
+  cmk_enforcement = var.customer_managed_key_enforcement_enabled == null ? null : (
+    var.customer_managed_key_enforcement_enabled ? "Enabled" : "Disabled"
+  )
+  # When a user-assigned identity is supplied the Search Service uses it to
+  # reach Key Vault; otherwise it falls back to its system-assigned identity,
+  # signalled to ARM with the DataNoneIdentity discriminator.
+  cmk_identity_body = var.customer_managed_key == null ? null : (
+    var.customer_managed_key.user_assigned_identity == null ? {
+      "@odata.type" = "#Microsoft.Azure.Search.DataNoneIdentity"
+      } : {
+      "@odata.type"        = "#Microsoft.Azure.Search.DataUserAssignedIdentity"
+      userAssignedIdentity = var.customer_managed_key.user_assigned_identity.resource_id
+    }
+  )
+  cmk_service_level_key = var.customer_managed_key == null ? null : merge(
+    {
+      # ARM normalises the vault URI with a trailing slash and the 0.3.x release
+      # sourced it from data.azurerm_key_vault.vault_uri (same form). Match that
+      # exactly so the value is idempotent on read and migrates without drift.
+      keyVaultUri     = "https://${reverse(split("/", var.customer_managed_key.key_vault_resource_id))[0]}.vault.azure.net/"
+      keyVaultKeyName = var.customer_managed_key.key_name
+      identity        = local.cmk_identity_body
+    },
+    var.customer_managed_key.key_version == null ? {} : {
+      keyVaultKeyVersion = var.customer_managed_key.key_version
+    }
+  )
+  encryption_with_cmk_body = (
+    local.cmk_enforcement == null && local.cmk_service_level_key == null
+    ) ? null : merge(
+    local.cmk_enforcement == null ? {} : { enforcement = local.cmk_enforcement },
+    local.cmk_service_level_key == null ? {} : { serviceLevelEncryptionKey = local.cmk_service_level_key },
+  )
+  # ---------------------------------------------------------------------------
+  # Hosting mode normalisation (ARM uses TitleCase)
+  # ---------------------------------------------------------------------------
+  hosting_mode_normalised = var.hosting_mode == null ? null : (
+    lower(var.hosting_mode) == "highdensity" ? "HighDensity" : "Default"
+  )
+  identity_body = local.managed_identity_type == "None" ? null : {
+    type = local.managed_identity_type
+    userAssignedIdentities = length(var.managed_identities.user_assigned_resource_ids) == 0 ? null : {
+      for id in var.managed_identities.user_assigned_resource_ids : id => {}
+    }
+  }
+  # ---------------------------------------------------------------------------
+  # Managed identity block for the search service body
+  # ---------------------------------------------------------------------------
+  managed_identity_type = (
+    var.managed_identities.system_assigned && length(var.managed_identities.user_assigned_resource_ids) > 0 ? "SystemAssigned, UserAssigned" :
+    var.managed_identities.system_assigned ? "SystemAssigned" :
+    length(var.managed_identities.user_assigned_resource_ids) > 0 ? "UserAssigned" :
+    "None"
+  )
+  # ---------------------------------------------------------------------------
+  # Network rule set body
+  # ---------------------------------------------------------------------------
+  network_rule_set = {
+    bypass  = var.network_rule_bypass_option
+    ipRules = var.allowed_ips == null ? [] : [for ip in var.allowed_ips : { value = ip }]
+  }
+  # ---------------------------------------------------------------------------
+  # Per-private-endpoint parent_id resolution.
+  #
+  # The standard `private_endpoints` interface exposes `resource_group_name`
+  # (rather than `parent_id`) on each PE so that consumers can target a
+  # different resource group from the one hosting the parent resource. When
+  # set we build the full RG resource ID using the parent's subscription;
+  # otherwise we fall back to the parent's own resource group resource ID
+  # (which is exactly `var.parent_id`).
+  # ---------------------------------------------------------------------------
+  parent_subscription_id = provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", var.parent_id).subscription_id
+  private_endpoint_parent_ids = {
+    for k, v in var.private_endpoints :
+    k => v.resource_group_name == null ? var.parent_id : format("/subscriptions/%s/resourceGroups/%s", local.parent_subscription_id, v.resource_group_name)
+  }
+  # Assignments where `role_definition_id_or_name` is a friendly name and so
+  # require a subscription-scope role definition lookup.
+  role_assignments_requiring_lookup = {
+    for k, ra in local.all_role_assignments :
+    k => ra
+    if !strcontains(lower(ra.role_definition_id_or_name), lower(local.role_definition_resource_substring))
+  }
+  # Resolved full role definition resource ID per assignment key.
+  role_definition_resource_ids = {
+    for k, ra in local.all_role_assignments :
+    k => (
+      strcontains(lower(ra.role_definition_id_or_name), lower(local.role_definition_resource_substring))
+      ? ra.role_definition_id_or_name
+      : try(data.azapi_resource_list.role_definitions[0].output.value[
+        index([for rd in data.azapi_resource_list.role_definitions[0].output.value : rd.properties.roleName], ra.role_definition_id_or_name)
+      ].id, ra.role_definition_id_or_name)
+    )
+  }
+  role_definition_resource_substring = "/providers/Microsoft.Authorization/roleDefinitions"
+  # ---------------------------------------------------------------------------
+  # Properties body for the search service.
+  # Null-valued keys are stripped so we never PUT a null that Azure echoes
+  # back as a server default — which would oscillate plans forever.
+  #
+  # Note: `encryptionWithCmk` is intentionally NOT set here. The whole writable
+  # CMK block requires a preview API and is applied by the dedicated
+  # `azapi_update_resource.cmk` (see main.cmk.tf) so the primary resource can
+  # stay on the stable GA API.
+  # ---------------------------------------------------------------------------
+  search_service_properties = { for k, v in {
+    authOptions         = local.auth_options_body
+    disableLocalAuth    = var.local_authentication_enabled == null ? null : !var.local_authentication_enabled
+    hostingMode         = local.hosting_mode_normalised
+    networkRuleSet      = local.network_rule_set
+    partitionCount      = var.partition_count
+    publicNetworkAccess = var.public_network_access_enabled ? "Enabled" : "Disabled"
+    replicaCount        = var.replica_count
+    semanticSearch      = var.semantic_search_sku
+  } : k => v if v != null }
 }

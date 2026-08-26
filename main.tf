@@ -1,91 +1,115 @@
-# required AVM resources interfaces
-# data "azurerm_resource_group" "parent" {
-#   count = var.location == null ? 1 : 0
+# -----------------------------------------------------------------------------
+# Subscription / tenant context (used for role definition lookups).
+# -----------------------------------------------------------------------------
+data "azapi_client_config" "current" {}
 
-#   name = var.resource_group_name
-# }
-# required AVM resources interfaces
-resource "azurerm_management_lock" "this" {
-  count = var.lock != null ? 1 : 0
+# Single subscription-scoped lookup of role definitions, shared between the
+# root `role_assignments` variable and any per-private-endpoint role
+# assignments. Skipped when every assignment already supplies a full role
+# definition resource ID.
+data "azapi_resource_list" "role_definitions" {
+  count = length(local.role_assignments_requiring_lookup) > 0 ? 1 : 0
 
-  lock_level = var.lock.kind
-  name       = coalesce(var.lock.name, "lock-${var.lock.kind}")
-  scope      = azurerm_search_service.this.id
+  parent_id              = data.azapi_client_config.current.subscription_resource_id
+  type                   = "Microsoft.Authorization/roleDefinitions@2022-04-01"
+  response_export_values = ["value"]
 }
 
-resource "azurerm_role_assignment" "this" {
-  for_each = var.role_assignments
-
-  principal_id                           = each.value.principal_id
-  scope                                  = azurerm_search_service.this.id
-  condition                              = each.value.condition
-  condition_version                      = each.value.condition_version
-  delegated_managed_identity_resource_id = each.value.delegated_managed_identity_resource_id
-  description                            = each.value.description
-  role_definition_id                     = strcontains(lower(each.value.role_definition_id_or_name), lower(local.role_definition_resource_substring)) ? each.value.role_definition_id_or_name : null
-  role_definition_name                   = strcontains(lower(each.value.role_definition_id_or_name), lower(local.role_definition_resource_substring)) ? null : each.value.role_definition_id_or_name
-  skip_service_principal_aad_check       = each.value.skip_service_principal_aad_check
-}
-
-resource "azurerm_monitor_diagnostic_setting" "this" {
-  for_each = var.diagnostic_settings
-
-  name                           = each.value.name != null ? each.value.name : "diag-${var.name}"
-  target_resource_id             = azurerm_search_service.this.id
-  eventhub_authorization_rule_id = each.value.event_hub_authorization_rule_resource_id
-  eventhub_name                  = each.value.event_hub_name
-  log_analytics_destination_type = each.value.log_analytics_destination_type
-  log_analytics_workspace_id     = each.value.workspace_resource_id
-  partner_solution_id            = each.value.marketplace_partner_resource_id
-  storage_account_id             = each.value.storage_account_resource_id
-
-  dynamic "enabled_log" {
-    for_each = each.value.log_categories
-
-    content {
-      category = enabled_log.value
+# -----------------------------------------------------------------------------
+# Primary resource: Azure AI Search service
+# -----------------------------------------------------------------------------
+resource "azapi_resource" "this" {
+  location  = var.location
+  name      = var.name
+  parent_id = var.parent_id
+  type      = var.resource_types.search_search_services
+  body = {
+    sku = {
+      name = var.sku
     }
+    identity   = local.identity_body
+    properties = local.search_service_properties
   }
-  dynamic "enabled_log" {
-    for_each = each.value.log_groups
+  create_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  delete_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  read_headers   = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+  replace_triggers_refs = [
+    "properties.hostingMode",
+  ]
+  response_export_values = [
+    "identity.principalId",
+    "identity.tenantId",
+    "properties.endpoint",
+  ]
+  retry = var.retry
+  tags  = var.tags
+
+  update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
+
+  dynamic "timeouts" {
+    for_each = var.timeouts == null ? [] : [var.timeouts]
 
     content {
-      category_group = enabled_log.value
-    }
-  }
-
-  dynamic "metric" {
-    for_each = each.value.metric_categories
-
-    content {
-      category = metric.value
+      create = timeouts.value.create
+      delete = timeouts.value.delete
+      read   = timeouts.value.read
+      update = timeouts.value.update
     }
   }
 }
 
-resource "azurerm_search_service" "this" {
-  location                                 = var.location
-  name                                     = var.name
-  resource_group_name                      = var.resource_group_name
-  sku                                      = var.sku
-  allowed_ips                              = var.allowed_ips
-  authentication_failure_mode              = var.authentication_failure_mode
-  customer_managed_key_enforcement_enabled = var.customer_managed_key_enforcement_enabled
-  hosting_mode                             = var.hosting_mode
-  local_authentication_enabled             = var.local_authentication_enabled
-  network_rule_bypass_option               = var.network_rule_bypass_option
-  partition_count                          = var.partition_count
-  public_network_access_enabled            = var.public_network_access_enabled
-  replica_count                            = var.replica_count
-  semantic_search_sku                      = var.semantic_search_sku
-  tags                                     = var.tags
+# -----------------------------------------------------------------------------
+# Cross-cutting interface submodules (TFRMNFR1).
+# -----------------------------------------------------------------------------
 
-  dynamic "identity" {
-    for_each = (var.managed_identities.system_assigned || length(var.managed_identities.user_assigned_resource_ids) > 0) ? { this = var.managed_identities } : {}
+module "lock" {
+  source = "./modules/lock"
+  count  = var.lock == null ? 0 : 1
 
-    content {
-      # only SystemAssigned is supported
-      type = identity.value.system_assigned ? "SystemAssigned" : null
+  kind             = var.lock.kind
+  parent_id        = azapi_resource.this.id
+  enable_telemetry = var.enable_telemetry
+  name             = var.lock.name
+  resource_types = {
+    authorization_locks = var.resource_types.authorization_locks
+  }
+  retry    = var.retry
+  timeouts = var.timeouts
+}
+
+module "role_assignment" {
+  source = "./modules/role_assignment"
+
+  parent_id = azapi_resource.this.id
+  assignments = {
+    for k, v in var.role_assignments : k => {
+      role_definition_resource_id            = local.role_definition_resource_ids[k]
+      principal_id                           = v.principal_id
+      principal_type                         = v.principal_type
+      description                            = v.description
+      condition                              = v.condition
+      condition_version                      = v.condition_version
+      delegated_managed_identity_resource_id = v.delegated_managed_identity_resource_id
+      skip_service_principal_aad_check       = v.skip_service_principal_aad_check
     }
   }
+  enable_telemetry = var.enable_telemetry
+  resource_types = {
+    authorization_role_assignments = var.resource_types.authorization_role_assignments
+  }
+  retry    = var.retry
+  timeouts = var.timeouts
+}
+
+module "diagnostic_setting" {
+  source = "./modules/diagnostic_setting"
+
+  parent_id           = azapi_resource.this.id
+  diagnostic_settings = var.diagnostic_settings
+  enable_telemetry    = var.enable_telemetry
+  resource_types = {
+    insights_diagnostic_settings = var.resource_types.insights_diagnostic_settings
+  }
+  retry    = var.retry
+  timeouts = var.timeouts
 }
