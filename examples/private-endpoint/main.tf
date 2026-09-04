@@ -12,6 +12,7 @@ terraform {
     }
   }
 }
+
 provider "azurerm" {
   features {}
 }
@@ -34,6 +35,7 @@ resource "random_integer" "region_index" {
   max = length(module.regions.regions) - 1
   min = 0
 }
+
 ## End of section to provide a random Azure region for the resource group
 
 # This ensures we have unique CAF compliant names for our resources.
@@ -59,13 +61,12 @@ resource "azurerm_virtual_network" "this" {
 
 #Subnet for private endpoint
 resource "azurerm_subnet" "this" {
-  address_prefixes                  = local.subnet_address_space
   name                              = "aisearch-subnet"
   resource_group_name               = azurerm_resource_group.this.name
   virtual_network_name              = azurerm_virtual_network.this.name
+  address_prefixes                  = local.subnet_address_space
   private_endpoint_network_policies = "Enabled"
 }
-
 
 # Create Private DNS Zone for Search Service
 resource "azurerm_private_dns_zone" "this" {
@@ -122,7 +123,3 @@ resource "azurerm_private_dns_a_record" "this" {
   zone_name           = azurerm_private_dns_zone.this.name
   tags                = var.tags
 }
-
-
-
-

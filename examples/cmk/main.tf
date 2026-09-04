@@ -12,6 +12,7 @@ terraform {
     }
   }
 }
+
 provider "azurerm" {
   features {
     key_vault {
@@ -52,9 +53,9 @@ resource "azurerm_key_vault" "this" {
   resource_group_name           = azurerm_resource_group.this.name
   sku_name                      = "standard"
   tenant_id                     = data.azurerm_client_config.current.tenant_id
-  rbac_authorization_enabled    = true
   public_network_access_enabled = true
   purge_protection_enabled      = true
+  rbac_authorization_enabled    = true
 }
 
 # Allow the test principal to create keys.
@@ -85,21 +86,20 @@ resource "azurerm_key_vault_key" "cmk" {
 module "search_service" {
   source = "../../"
 
-  location                                 = azurerm_resource_group.this.location
-  name                                     = module.naming.search_service.name_unique
-  resource_group_name                      = azurerm_resource_group.this.name
+  location            = azurerm_resource_group.this.location
+  name                = module.naming.search_service.name_unique
+  resource_group_name = azurerm_resource_group.this.name
+  customer_managed_key = {
+    key_vault_resource_id = azurerm_key_vault.this.id
+    key_name              = azurerm_key_vault_key.cmk.name
+    key_version           = azurerm_key_vault_key.cmk.version
+  }
   customer_managed_key_enforcement_enabled = true
   enable_telemetry                         = var.enable_telemetry
   managed_identities = {
     system_assigned = true
   }
   sku = "standard"
-
-  customer_managed_key = {
-    key_vault_resource_id = azurerm_key_vault.this.id
-    key_name              = azurerm_key_vault_key.cmk.name
-    key_version           = azurerm_key_vault_key.cmk.version
-  }
 }
 
 # Grant the Search Service's system-assigned identity access to wrap/unwrap the
