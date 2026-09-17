@@ -61,6 +61,6 @@ module "search_service" {
   # managed_identities = {
   #   system_assigned = true
   # }
-  enable_telemetry = var.enable_telemetry # see variables.tf
+  enable_telemetry = false # see variables.tf
   sku              = "standard"
 }
