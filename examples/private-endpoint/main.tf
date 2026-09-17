@@ -97,7 +97,7 @@ module "search_service" {
   name                         = module.naming.search_service.name_unique
   resource_group_name          = azurerm_resource_group.this.name
   allowed_ips                  = var.azure_ai_allowed_ips
-  enable_telemetry             = var.enable_telemetry # see variables.tf
+  enable_telemetry             = false # see variables.tf
   local_authentication_enabled = var.local_authentication_enabled
   managed_identities = {
     system_assigned = true
