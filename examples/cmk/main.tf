@@ -95,7 +95,7 @@ module "search_service" {
     key_version           = azurerm_key_vault_key.cmk.version
   }
   customer_managed_key_enforcement_enabled = true
-  enable_telemetry                         = false
+  enable_telemetry                         = var.enable_telemetry
   managed_identities = {
     system_assigned = true
   }

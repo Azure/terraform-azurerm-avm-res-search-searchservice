@@ -68,7 +68,7 @@ module "search_service" {
   # managed_identities = {
   #   system_assigned = true
   # }
-  enable_telemetry = false # see variables.tf
+  enable_telemetry = var.enable_telemetry # see variables.tf
   sku              = "standard"
 }
 ```
@@ -108,7 +108,7 @@ If it is set to false, then no telemetry will be collected.
 
 Type: `bool`
 
-Default: `true`
+Default: `false`
 
 ### <a name="input_location"></a> [location](#input\_location)
 
