@@ -180,7 +180,7 @@ If it is set to false, then no telemetry will be collected.
 
 Type: `bool`
 
-Default: `false`
+Default: `true`
 
 ### <a name="input_local_authentication_enabled"></a> [local\_authentication\_enabled](#input\_local\_authentication\_enabled)
 
