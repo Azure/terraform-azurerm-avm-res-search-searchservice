@@ -30,9 +30,6 @@ resource "azapi_resource" "this" {
     identity   = local.identity_body
     properties = local.search_service_properties
   }
-  create_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  delete_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  read_headers   = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   replace_triggers_refs = [
     "properties.hostingMode",
   ]
@@ -43,8 +40,6 @@ resource "azapi_resource" "this" {
   ]
   retry = var.retry
   tags  = var.tags
-
-  update_headers = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
 
   dynamic "timeouts" {
     for_each = var.timeouts == null ? [] : [var.timeouts]

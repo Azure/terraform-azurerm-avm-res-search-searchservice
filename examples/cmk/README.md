@@ -7,6 +7,125 @@ Deploys a Search Service encrypted at the service level with a customer-managed 
 > [!WARNING]
 > Service-level CMK uses the `Microsoft.Search/searchServices@2026-03-01-preview` API. See the root module README for caveats.
 
+```hcl
+terraform {
+  required_version = ">= 1.9, < 2.0"
+
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.5"
+    }
+  }
+}
+
+provider "azurerm" {
+  features {
+    key_vault {
+      purge_soft_delete_on_destroy    = true
+      recover_soft_deleted_key_vaults = true
+    }
+  }
+}
+
+module "regions" {
+  source  = "Azure/regions/azurerm"
+  version = "0.8.2"
+}
+
+resource "random_integer" "region_index" {
+  max = length(module.regions.regions) - 1
+  min = 0
+}
+
+module "naming" {
+  source  = "Azure/naming/azurerm"
+  version = "0.4.3"
+}
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_resource_group" "this" {
+  location = var.location
+  name     = module.naming.resource_group.name_unique
+}
+
+# Key Vault to host the customer-managed key. RBAC permission model so the
+# Search Service's system-assigned identity can be granted "Key Vault Crypto
+# Service Encryption User" via a role assignment created after the module call.
+resource "azurerm_key_vault" "this" {
+  location                      = azurerm_resource_group.this.location
+  name                          = module.naming.key_vault.name_unique
+  resource_group_name           = azurerm_resource_group.this.name
+  sku_name                      = "standard"
+  tenant_id                     = data.azurerm_client_config.current.tenant_id
+  public_network_access_enabled = true
+  purge_protection_enabled      = true
+  rbac_authorization_enabled    = true
+}
+
+# Allow the test principal to create keys.
+resource "azurerm_role_assignment" "kv_admin" {
+  principal_id         = data.azurerm_client_config.current.object_id
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Administrator"
+}
+
+resource "azurerm_key_vault_key" "cmk" {
+  key_opts = [
+    "decrypt",
+    "encrypt",
+    "sign",
+    "unwrapKey",
+    "verify",
+    "wrapKey",
+  ]
+  key_type     = "RSA"
+  key_vault_id = azurerm_key_vault.this.id
+  name         = "${module.naming.search_service.name_unique}-cmk"
+  key_size     = 2048
+
+  depends_on = [azurerm_role_assignment.kv_admin]
+}
+
+# This is the module call.
+module "search_service" {
+  source = "../../"
+
+  location  = azurerm_resource_group.this.location
+  name      = module.naming.search_service.name_unique
+  parent_id = azurerm_resource_group.this.id
+  customer_managed_key = {
+    key_vault_resource_id = azurerm_key_vault.this.id
+    key_name              = azurerm_key_vault_key.cmk.name
+    key_version           = azurerm_key_vault_key.cmk.version
+  }
+  customer_managed_key_enforcement_enabled = true
+  enable_telemetry                         = var.enable_telemetry
+  managed_identities = {
+    system_assigned = true
+  }
+  sku = "standard"
+}
+
+# Grant the Search Service's system-assigned identity access to wrap/unwrap the
+# CMK. With system-assigned identities the role assignment can only be created
+# after the module has provisioned the service, so it lands AFTER the module's
+# azapi_update_resource PATCH. In practice Azure validates key access lazily
+# (the PATCH returns OK and the service polls encryptionComplianceStatus), so
+# this ordering works today. If Azure tightens validation in future, callers
+# should switch to a pre-assigned user-assigned identity.
+resource "azurerm_role_assignment" "search_kv" {
+  principal_id         = module.search_service.system_assigned_principal_id
+  scope                = azurerm_key_vault.this.id
+  role_definition_name = "Key Vault Crypto Service Encryption User"
+}
+```
+
 <!-- markdownlint-disable MD033 -->
 ## Requirements
 
@@ -83,4 +202,8 @@ Source: ../../
 
 Version:
 
+<!-- markdownlint-disable-next-line MD041 -->
+## Data Collection
+
+The software may collect information about you and your use of the software and send it to Microsoft. Microsoft may use this information to provide services and improve our products and services. You may turn off the telemetry as described in the repository. There are also some features in the software that may enable you and Microsoft to collect data from users of your applications. If you use these features, you must comply with applicable law, including providing appropriate notices to users of your applications together with a copy of Microsoft’s privacy statement. Our privacy statement is located at <https://go.microsoft.com/fwlink/?LinkID=824704>. You can learn more about data collection and use in the help documentation and our privacy statement. Your use of the software operates as your consent to these practices.
 <!-- END_TF_DOCS -->
