@@ -1,79 +1,53 @@
-# The PE resource when we are managing the private_dns_zone_group block:
-resource "azurerm_private_endpoint" "this" {
-  for_each = { for k, v in var.private_endpoints : k => v if var.private_endpoints_manage_dns_zone_group }
+# -----------------------------------------------------------------------------
+# Private endpoints — composed via the `private_endpoint` submodule per
+# TFRMNFR1. The submodule owns the PE itself plus the DNS zone group, the
+# per-endpoint management lock, and per-endpoint role assignments. The
+# submodule is called exactly once and internally fans out via `for_each` so
+# that state addresses remain stable across the AzureRM → AzAPI migration
+# (see `main.moved.tf`).
+# -----------------------------------------------------------------------------
+module "private_endpoint" {
+  source = "./modules/private_endpoint"
 
-  location                      = coalesce(each.value.location, var.location)
-  name                          = each.value.name != null ? each.value.name : "pe-${var.name}"
-  resource_group_name           = each.value.resource_group_name != null ? each.value.resource_group_name : var.resource_group_name
-  subnet_id                     = each.value.subnet_resource_id
-  custom_network_interface_name = each.value.network_interface_name
-  tags                          = each.value.tags == null ? var.tags : each.value.tags == {} ? {} : each.value.tags
-
-  private_service_connection {
-    is_manual_connection           = false
-    name                           = each.value.private_service_connection_name != null ? each.value.private_service_connection_name : "psc-${var.name}"
-    private_connection_resource_id = azurerm_search_service.this.id
-    subresource_names              = ["searchService"]
-  }
-
-  dynamic "ip_configuration" {
-    for_each = each.value.ip_configurations
-
-    content {
-      name               = ip_configuration.value.name
-      private_ip_address = ip_configuration.value.private_ip_address
-      member_name        = "searchService"
-      subresource_name   = "searchService"
+  location                         = var.location
+  private_link_service_resource_id = azapi_resource.this.id
+  enable_telemetry                 = var.enable_telemetry
+  endpoints = {
+    for pe_k, pe_v in var.private_endpoints :
+    pe_k => {
+      name                                    = pe_v.name
+      parent_id                               = local.private_endpoint_parent_ids[pe_k]
+      subnet_resource_id                      = pe_v.subnet_resource_id
+      subresource_name                        = "searchService"
+      network_interface_name                  = pe_v.network_interface_name
+      private_service_connection_name         = pe_v.private_service_connection_name
+      ip_configurations                       = pe_v.ip_configurations
+      application_security_group_associations = pe_v.application_security_group_associations
+      private_dns_zone_group_name             = pe_v.private_dns_zone_group_name
+      private_dns_zone_resource_ids           = pe_v.private_dns_zone_resource_ids
+      lock                                    = pe_v.lock
+      tags                                    = pe_v.tags == null ? var.tags : pe_v.tags
+      role_assignments = {
+        for ra_k, ra_v in pe_v.role_assignments :
+        ra_k => {
+          role_definition_resource_id            = local.role_definition_resource_ids["${pe_k}-${ra_k}"]
+          principal_id                           = ra_v.principal_id
+          description                            = ra_v.description
+          skip_service_principal_aad_check       = ra_v.skip_service_principal_aad_check
+          condition                              = ra_v.condition
+          condition_version                      = ra_v.condition_version
+          delegated_managed_identity_resource_id = ra_v.delegated_managed_identity_resource_id
+          principal_type                         = ra_v.principal_type
+        }
+      }
     }
   }
-
-  dynamic "private_dns_zone_group" {
-    for_each = length(each.value.private_dns_zone_resource_ids) > 0 ? ["this"] : []
-
-    content {
-      name                 = each.value.private_dns_zone_group_name
-      private_dns_zone_ids = each.value.private_dns_zone_resource_ids
-    }
+  resource_types = {
+    network_private_endpoints                         = var.resource_types.network_private_endpoints
+    network_private_endpoints_private_dns_zone_groups = var.resource_types.network_private_endpoints_private_dns_zone_groups
+    authorization_locks                               = var.resource_types.authorization_locks
+    authorization_role_assignments                    = var.resource_types.authorization_role_assignments
   }
-}
-
-# The PE resource when we are managing **not** the private_dns_zone_group block, such as when using Azure Policy:
-resource "azurerm_private_endpoint" "this_unmanaged_dns_zone_groups" {
-  for_each = { for k, v in var.private_endpoints : k => v if !var.private_endpoints_manage_dns_zone_group }
-
-  location                      = coalesce(each.value.location, var.location)
-  name                          = each.value.name != null ? each.value.name : "pe-${var.name}"
-  resource_group_name           = each.value.resource_group_name != null ? each.value.resource_group_name : var.resource_group_name
-  subnet_id                     = each.value.subnet_resource_id
-  custom_network_interface_name = each.value.network_interface_name
-  tags                          = each.value.tags == null ? var.tags : each.value.tags == {} ? {} : each.value.tags
-
-  private_service_connection {
-    is_manual_connection           = false
-    name                           = each.value.private_service_connection_name != null ? each.value.private_service_connection_name : "psc-${var.name}"
-    private_connection_resource_id = azurerm_search_service.this.id
-    subresource_names              = ["searchService"]
-  }
-
-  dynamic "ip_configuration" {
-    for_each = each.value.ip_configurations
-
-    content {
-      name               = ip_configuration.value.name
-      private_ip_address = ip_configuration.value.private_ip_address
-      member_name        = "default"
-      subresource_name   = "searchService"
-    }
-  }
-
-  lifecycle {
-    ignore_changes = [private_dns_zone_group]
-  }
-}
-
-resource "azurerm_private_endpoint_application_security_group_association" "this" {
-  for_each = local.private_endpoint_application_security_group_associations
-
-  application_security_group_id = each.value.asg_resource_id
-  private_endpoint_id           = azurerm_private_endpoint.this[each.value.pe_key].id
+  retry    = var.retry
+  timeouts = var.timeouts
 }
