@@ -75,6 +75,10 @@ run "managed_dns_subresources" {
     )
     error_message = "Managed-DNS endpoints must forward the subresource override."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "unmanaged_dns_subresources" {
@@ -98,5 +102,9 @@ run "unmanaged_dns_subresources" {
       module.private_endpoint.resource["custom"].body.properties.ipConfigurations[0].properties.groupId == "customGroup"
     )
     error_message = "Unmanaged-DNS endpoints must forward the subresource override."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
