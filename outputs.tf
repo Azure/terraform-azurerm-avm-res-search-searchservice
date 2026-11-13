@@ -7,6 +7,7 @@ output "private_endpoints" {
 # https://azure.github.io/Azure-Verified-Modules/specs/terraform/#id-tffr2---category-outputs---additional-terraform-outputs
 output "resource" {
   description = "This is the full output for the resource."
+  sensitive   = true
   value       = azurerm_search_service.this
 }
 
