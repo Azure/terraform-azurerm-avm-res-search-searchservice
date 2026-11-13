@@ -62,6 +62,7 @@ module "lock" {
   count  = var.lock == null ? 0 : 1
 
   kind             = var.lock.kind
+  location         = var.location
   parent_id        = azapi_resource.this.id
   enable_telemetry = var.enable_telemetry
   name             = var.lock.name
@@ -75,6 +76,7 @@ module "lock" {
 module "role_assignment" {
   source = "./modules/role_assignment"
 
+  location  = var.location
   parent_id = azapi_resource.this.id
   assignments = {
     for k, v in var.role_assignments : k => {
@@ -99,6 +101,7 @@ module "role_assignment" {
 module "diagnostic_setting" {
   source = "./modules/diagnostic_setting"
 
+  location            = var.location
   parent_id           = azapi_resource.this.id
   diagnostic_settings = var.diagnostic_settings
   enable_telemetry    = var.enable_telemetry

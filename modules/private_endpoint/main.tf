@@ -1,7 +1,7 @@
 locals {
   avm_azapi_header = "AVM/0.x.x avm-res-search-searchservice/modules/private_endpoint"
   # PE keys whose DNS zone group should be created.
-  dns_zone_group_keys = toset([for k, v in var.endpoints : k if length(v.private_dns_zone_resource_ids) > 0])
+  dns_zone_group_keys = toset([for k, v in var.endpoints : k if var.manage_dns_zone_group && length(v.private_dns_zone_resource_ids) > 0])
   # Per-PE locks (only PEs whose lock is non-null).
   locks       = { for k, v in var.endpoints : k => v.lock if v.lock != null }
   parent_name = reverse(split("/", var.private_link_service_resource_id))[0]
@@ -41,7 +41,7 @@ resource "azapi_resource" "this" {
           name = ipc.name
           properties = {
             groupId          = each.value.subresource_name
-            memberName       = each.value.subresource_name
+            memberName       = coalesce(ipc.member_name, each.value.subresource_name)
             privateIPAddress = ipc.private_ip_address
           }
         }
@@ -104,7 +104,6 @@ resource "azapi_resource" "dns_zone_group" {
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
   response_export_values = []
   retry                  = var.retry
   update_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
@@ -130,13 +129,12 @@ resource "azapi_resource" "lock" {
   body = {
     properties = {
       level = each.value.kind
-      notes = "Locked by avm-res-search-searchservice/modules/private_endpoint."
+      notes = coalesce(each.value.notes, "Locked by avm-res-search-searchservice/modules/private_endpoint.")
     }
   }
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
   response_export_values = []
   retry                  = var.retry
   update_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
@@ -160,7 +158,7 @@ resource "random_uuid" "role_assignment" {
 resource "azapi_resource" "role_assignment" {
   for_each = local.role_assignments_flat
 
-  name      = random_uuid.role_assignment[each.key].result
+  name      = coalesce(each.value.name, random_uuid.role_assignment[each.key].result)
   parent_id = azapi_resource.this[each.value.pe_key].id
   type      = var.resource_types.authorization_role_assignments
   body = {
@@ -177,7 +175,6 @@ resource "azapi_resource" "role_assignment" {
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
   response_export_values = []
   retry = anytrue([for v in values(local.role_assignments_flat) : v.skip_service_principal_aad_check]) ? {
     error_message_regex = concat(

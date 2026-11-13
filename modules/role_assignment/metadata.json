@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/azure-verified-modules-tools/main/src/Avm.Authoring/Resources/Schemas/v1/avm-module-metadata.schema.json",
+  "moduleDisplayName": "Role Assignment",
+  "moduleDescription": "Internal helper that manages role assignments for the Search Service.",
+  "canonicalType": "helper"
+}

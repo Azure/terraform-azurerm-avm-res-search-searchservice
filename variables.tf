@@ -262,6 +262,7 @@ variable "private_endpoints" {
   type = map(object({
     name = optional(string, null)
     role_assignments = optional(map(object({
+      name                                   = optional(string, null)
       role_definition_id_or_name             = string
       principal_id                           = string
       description                            = optional(string, null)
@@ -272,11 +273,13 @@ variable "private_endpoints" {
       principal_type                         = optional(string, null)
     })), {})
     lock = optional(object({
-      kind = string
-      name = optional(string, null)
+      kind  = string
+      name  = optional(string, null)
+      notes = optional(string, null)
     }), null)
     tags                                    = optional(map(string), null)
     subnet_resource_id                      = string
+    subresource_name                        = optional(string, null)
     private_dns_zone_group_name             = optional(string, "default")
     private_dns_zone_resource_ids           = optional(set(string), [])
     application_security_group_associations = optional(map(string), {})
@@ -287,6 +290,7 @@ variable "private_endpoints" {
     ip_configurations = optional(map(object({
       name               = string
       private_ip_address = string
+      member_name        = optional(string)
     })), {})
   }))
   default     = {}
@@ -295,9 +299,12 @@ A map of private endpoints to create on the Search Service. The map key is delib
 
 - `name` - (Optional) Private endpoint name. One is generated if unset.
 - `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. Same shape as `var.role_assignments`.
+  - `name` - (Optional) The name of the role assignment. A random UUID is generated if unset.
 - `lock` - (Optional) A lock to apply to the private endpoint.
+  - `notes` - (Optional) Notes about the lock. Maps to `Microsoft.Authorization/locks.properties.notes`.
 - `tags` - (Optional) Tags to assign to the private endpoint.
 - `subnet_resource_id` - (Required) The resource ID of the subnet to deploy the private endpoint in.
+- `subresource_name` - (Optional) The name of the sub resource for the private endpoint. Defaults to `searchService`.
 - `private_dns_zone_group_name` - (Optional) The name of the private DNS zone group. Defaults to `default`.
 - `private_dns_zone_resource_ids` - (Optional) A set of private DNS zone resource IDs to associate. If empty, no zone group is created.
 - `application_security_group_associations` - (Optional) A map (arbitrary key → ASG resource ID) of application security groups to associate.
@@ -308,6 +315,7 @@ A map of private endpoints to create on the Search Service. The map key is delib
 - `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint.
   - `name` - (Required) The IP configuration name.
   - `private_ip_address` - (Required) The static private IP address to assign.
+  - `member_name` - (Optional) The private IP configuration member name. Defaults to the sub resource name.
 DESCRIPTION
   nullable    = false
 
@@ -345,6 +353,13 @@ DESCRIPTION
     ]))
     error_message = "Each `private_endpoints[*].role_assignments[*].delegated_managed_identity_resource_id` must be a valid user-assigned managed identity resource ID, or `null`."
   }
+}
+
+variable "private_endpoints_manage_dns_zone_group" {
+  type        = bool
+  default     = true
+  description = "Whether to manage private DNS zone groups with this module. If set to false, you must manage private DNS zone groups externally, e.g. using Azure Policy."
+  nullable    = false
 }
 
 variable "public_network_access_enabled" {

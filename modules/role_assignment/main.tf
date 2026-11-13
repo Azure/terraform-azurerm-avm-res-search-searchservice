@@ -26,7 +26,6 @@ resource "azapi_resource" "this" {
   create_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   delete_headers         = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
   read_headers           = var.enable_telemetry ? { "User-Agent" : local.avm_azapi_header } : null
-  replace_triggers_refs  = []
   response_export_values = []
   # When assigning to a freshly-created service principal Azure AD replication
   # may lag; retry on the relevant error message rather than sleeping.

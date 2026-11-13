@@ -81,22 +81,17 @@ The following requirements are needed by this module:
 
 - <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.12)
 
-- <a name="requirement_modtm"></a> [modtm](#requirement\_modtm) (~> 0.3)
-
-- <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
-
 ## Resources
 
 The following resources are used by this module:
 
+- [azapi_resource.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_resource.this](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) (resource)
 - [azapi_update_resource.cmk](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/update_resource) (resource)
-- [modtm_telemetry.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/resources/telemetry) (resource)
-- [random_uuid.telemetry](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/uuid) (resource)
+- [terraform_data.telemetry](https://registry.terraform.io/providers/hashicorp/terraform/latest/docs/resources/data) (resource)
 - [azapi_client_config.current](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
 - [azapi_client_config.telemetry](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/client_config) (data source)
 - [azapi_resource_list.role_definitions](https://registry.terraform.io/providers/Azure/azapi/latest/docs/data-sources/resource_list) (data source)
-- [modtm_module_source.telemetry](https://registry.terraform.io/providers/Azure/modtm/latest/docs/data-sources/module_source) (data source)
 
 <!-- markdownlint-disable MD013 -->
 ## Required Inputs
@@ -301,9 +296,12 @@ Description: A map of private endpoints to create on the Search Service. The map
 
 - `name` - (Optional) Private endpoint name. One is generated if unset.
 - `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. Same shape as `var.role_assignments`.
+  - `name` - (Optional) The name of the role assignment. A random UUID is generated if unset.
 - `lock` - (Optional) A lock to apply to the private endpoint.
+  - `notes` - (Optional) Notes about the lock. Maps to `Microsoft.Authorization/locks.properties.notes`.
 - `tags` - (Optional) Tags to assign to the private endpoint.
 - `subnet_resource_id` - (Required) The resource ID of the subnet to deploy the private endpoint in.
+- `subresource_name` - (Optional) The name of the sub resource for the private endpoint. Defaults to `searchService`.
 - `private_dns_zone_group_name` - (Optional) The name of the private DNS zone group. Defaults to `default`.
 - `private_dns_zone_resource_ids` - (Optional) A set of private DNS zone resource IDs to associate. If empty, no zone group is created.
 - `application_security_group_associations` - (Optional) A map (arbitrary key → ASG resource ID) of application security groups to associate.
@@ -314,6 +312,7 @@ Description: A map of private endpoints to create on the Search Service. The map
 - `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint.
   - `name` - (Required) The IP configuration name.
   - `private_ip_address` - (Required) The static private IP address to assign.
+  - `member_name` - (Optional) The private IP configuration member name. Defaults to the sub resource name.
 
 Type:
 
@@ -321,6 +320,7 @@ Type:
 map(object({
     name = optional(string, null)
     role_assignments = optional(map(object({
+      name                                   = optional(string, null)
       role_definition_id_or_name             = string
       principal_id                           = string
       description                            = optional(string, null)
@@ -331,11 +331,13 @@ map(object({
       principal_type                         = optional(string, null)
     })), {})
     lock = optional(object({
-      kind = string
-      name = optional(string, null)
+      kind  = string
+      name  = optional(string, null)
+      notes = optional(string, null)
     }), null)
     tags                                    = optional(map(string), null)
     subnet_resource_id                      = string
+    subresource_name                        = optional(string, null)
     private_dns_zone_group_name             = optional(string, "default")
     private_dns_zone_resource_ids           = optional(set(string), [])
     application_security_group_associations = optional(map(string), {})
@@ -346,11 +348,20 @@ map(object({
     ip_configurations = optional(map(object({
       name               = string
       private_ip_address = string
+      member_name        = optional(string)
     })), {})
   }))
 ```
 
 Default: `{}`
+
+### <a name="input_private_endpoints_manage_dns_zone_group"></a> [private\_endpoints\_manage\_dns\_zone\_group](#input\_private\_endpoints\_manage\_dns\_zone\_group)
+
+Description: Whether to manage private DNS zone groups with this module. If set to false, you must manage private DNS zone groups externally, e.g. using Azure Policy.
+
+Type: `bool`
+
+Default: `true`
 
 ### <a name="input_public_network_access_enabled"></a> [public\_network\_access\_enabled](#input\_public\_network\_access\_enabled)
 

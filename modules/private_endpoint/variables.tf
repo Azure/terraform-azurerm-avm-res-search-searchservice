@@ -27,6 +27,7 @@ variable "endpoints" {
     ip_configurations = optional(map(object({
       name               = string
       private_ip_address = string
+      member_name        = optional(string)
     })), {})
     network_interface_name          = optional(string, null)
     private_dns_zone_group_name     = optional(string, "default")
@@ -34,10 +35,12 @@ variable "endpoints" {
     private_service_connection_name = optional(string, null)
     tags                            = optional(map(string), null)
     lock = optional(object({
-      kind = string
-      name = optional(string, null)
+      kind  = string
+      name  = optional(string, null)
+      notes = optional(string, null)
     }), null)
     role_assignments = optional(map(object({
+      name                                   = optional(string, null)
       role_definition_resource_id            = string
       principal_id                           = string
       description                            = optional(string, null)
@@ -60,6 +63,13 @@ variable "endpoints" {
     condition     = alltrue([for k, v in var.endpoints : can(provider::azapi::parse_resource_id("Microsoft.Resources/resourceGroups", v.parent_id))])
     error_message = "Each `endpoints[*].parent_id` must be a valid Azure resource group resource ID."
   }
+}
+
+variable "manage_dns_zone_group" {
+  type        = bool
+  default     = true
+  description = "(Optional) Whether to create the private DNS zone group for each endpoint. Set to false when DNS zone groups are managed externally, e.g. using Azure Policy."
+  nullable    = false
 }
 
 variable "resource_types" {

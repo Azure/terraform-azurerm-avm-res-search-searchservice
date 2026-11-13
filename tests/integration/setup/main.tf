@@ -12,11 +12,6 @@ terraform {
   }
 }
 
-variable "location" {
-  type    = string
-  default = "eastus"
-}
-
 resource "random_string" "suffix" {
   length  = 8
   lower   = true

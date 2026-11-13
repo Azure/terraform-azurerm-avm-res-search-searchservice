@@ -17,7 +17,7 @@
 # -----------------------------------------------------------------------------
 
 resource "azapi_update_resource" "cmk" {
-  count = local.encryption_with_cmk_body == null ? 0 : 1
+  count = var.customer_managed_key == null && var.customer_managed_key_enforcement_enabled == null ? 0 : 1
 
   resource_id = azapi_resource.this.id
   type        = var.resource_types.search_search_services_cmk

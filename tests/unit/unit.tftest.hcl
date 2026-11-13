@@ -31,7 +31,6 @@ mock_provider "azapi" {
   }
 }
 
-mock_provider "modtm" {}
 mock_provider "random" {}
 
 variables {
@@ -42,6 +41,11 @@ variables {
 
 run "defaults_apply" {
   command = apply
+
+  # CI exports TF_VAR_enable_telemetry=false, which overrides the default.
+  variables {
+    enable_telemetry = true
+  }
 
   assert {
     condition     = azapi_resource.this.type == "Microsoft.Search/searchServices@2025-05-01"
@@ -89,8 +93,12 @@ run "defaults_apply" {
   }
 
   assert {
-    condition     = can(modtm_telemetry.telemetry[0])
+    condition     = can(azapi_resource.telemetry[0])
     error_message = "Telemetry resource should be created when enable_telemetry defaults to true (SFR3)."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -102,8 +110,12 @@ run "telemetry_disabled" {
   }
 
   assert {
-    condition     = length(modtm_telemetry.telemetry) == 0
+    condition     = length(azapi_resource.telemetry) == 0
     error_message = "Telemetry resource MUST NOT be created when enable_telemetry is false."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -124,6 +136,10 @@ run "managed_identity_system_assigned" {
   assert {
     condition     = azapi_resource.this.body.identity.userAssignedIdentities == null
     error_message = "userAssignedIdentities should be null when no user-assigned identities are supplied."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -147,6 +163,10 @@ run "managed_identity_user_assigned" {
     condition     = length(keys(azapi_resource.this.body.identity.userAssignedIdentities)) == 1
     error_message = "userAssignedIdentities should contain exactly one entry."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "managed_identity_both" {
@@ -164,6 +184,10 @@ run "managed_identity_both" {
   assert {
     condition     = azapi_resource.this.body.identity.type == "SystemAssigned, UserAssigned"
     error_message = "identity.type should be 'SystemAssigned, UserAssigned' when both are requested."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -194,6 +218,10 @@ run "lock_created" {
   assert {
     condition     = module.lock[0].resource.name == "lock-CanNotDelete"
     error_message = "Lock name should default to lock-<kind> when var.lock.name is null."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -232,6 +260,10 @@ run "diagnostic_settings_created" {
     condition     = module.diagnostic_setting.resource["to_law"].body.properties.logs[0].categoryGroup == "allLogs"
     error_message = "Default log entry should use categoryGroup = allLogs."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "role_assignment_by_name" {
@@ -260,6 +292,10 @@ run "role_assignment_by_name" {
     condition     = module.role_assignment.resource["reader"].body.properties.principalId == "00000000-0000-0000-0000-00000000abcd"
     error_message = "principalId should be propagated."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "role_assignment_by_id" {
@@ -277,6 +313,10 @@ run "role_assignment_by_id" {
   assert {
     condition     = module.role_assignment.resource["reader"].body.properties.roleDefinitionId == "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.Authorization/roleDefinitions/acdd72a7-3385-48ef-bd42-f606fba81ae7"
     error_message = "When a full role definition ID is supplied, it should be used verbatim."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -317,6 +357,10 @@ run "private_endpoint_created" {
     condition     = azapi_resource.this.body.properties.publicNetworkAccess == "Disabled"
     error_message = "publicNetworkAccess should be Disabled when public_network_access_enabled is false."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "private_endpoint_unmanaged_dns" {
@@ -334,6 +378,33 @@ run "private_endpoint_unmanaged_dns" {
   assert {
     condition     = try(module.private_endpoint.dns_zone_group_resource_ids["primary"], null) == null
     error_message = "DNS zone group MUST NOT be created when private_dns_zone_resource_ids is empty."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
+}
+
+run "private_endpoint_dns_zone_group_not_managed" {
+  command = apply
+
+  variables {
+    private_endpoints_manage_dns_zone_group = false
+    private_endpoints = {
+      primary = {
+        subnet_resource_id            = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/virtualNetworks/vnet-test/subnets/snet-pe"
+        private_dns_zone_resource_ids = ["/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-test/providers/Microsoft.Network/privateDnsZones/privatelink.search.windows.net"]
+      }
+    }
+  }
+
+  assert {
+    condition     = try(module.private_endpoint.dns_zone_group_resource_ids["primary"], null) == null
+    error_message = "DNS zone group MUST NOT be created when private_endpoints_manage_dns_zone_group is false."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -398,6 +469,10 @@ run "customer_managed_key" {
     condition     = azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.identity["@odata.type"] == "#Microsoft.Azure.Search.DataUserAssignedIdentity"
     error_message = "CMK identity should be a DataUserAssignedIdentity when a user-assigned identity is supplied."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # System-assigned identity path: no user_assigned_identity, no key_version.
@@ -423,6 +498,10 @@ run "customer_managed_key_system_assigned" {
     condition     = !can(azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey.keyVaultKeyVersion)
     error_message = "keyVaultKeyVersion MUST be omitted when customer_managed_key.key_version is null."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # Enforcement-only: no key block, just the enforcement policy.
@@ -442,6 +521,10 @@ run "customer_managed_key_enforcement_only" {
     condition     = !can(azapi_update_resource.cmk[0].body.properties.encryptionWithCmk.serviceLevelEncryptionKey)
     error_message = "serviceLevelEncryptionKey MUST be omitted when no customer_managed_key is supplied."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # No CMK and no enforcement: the patch resource must not be created at all.
@@ -451,6 +534,10 @@ run "customer_managed_key_absent" {
   assert {
     condition     = length(azapi_update_resource.cmk) == 0
     error_message = "The CMK azapi_update_resource MUST NOT be created when neither customer_managed_key nor enforcement is set."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -466,6 +553,10 @@ run "customer_managed_key_requires_identity" {
   }
 
   expect_failures = [var.customer_managed_key]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # Overriding the CMK patch API to a stable version must be rejected.
@@ -486,6 +577,10 @@ run "customer_managed_key_requires_preview_api" {
   }
 
   expect_failures = [var.customer_managed_key]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 # A user-assigned CMK identity that is not also assigned to the Search Service
@@ -509,6 +604,10 @@ run "customer_managed_key_uai_must_be_assigned" {
   }
 
   expect_failures = [var.customer_managed_key]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "hosting_mode_normalisation" {
@@ -523,6 +622,10 @@ run "hosting_mode_normalisation" {
     condition     = azapi_resource.this.body.properties.hostingMode == "HighDensity"
     error_message = "hosting_mode 'highDensity' should be normalised to 'HighDensity' in the ARM body."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "local_authentication_disabled" {
@@ -535,6 +638,10 @@ run "local_authentication_disabled" {
   assert {
     condition     = azapi_resource.this.body.properties.disableLocalAuth == true
     error_message = "disableLocalAuth should be true when local_authentication_enabled is false."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -554,6 +661,10 @@ run "allowed_ips" {
     condition     = azapi_resource.this.body.properties.networkRuleSet.ipRules[0].value == "10.0.0.0/24"
     error_message = "First IP rule value should match the first allowed_ips entry."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "resource_types_overridable" {
@@ -568,6 +679,10 @@ run "resource_types_overridable" {
   assert {
     condition     = azapi_resource.this.type == "Microsoft.Search/searchServices@2025-02-01-preview"
     error_message = "Consumer override of resource_types.search_search_services MUST be honoured (TFFR6)."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
   }
 }
 
@@ -590,6 +705,10 @@ run "retry_and_timeouts_overridable" {
     condition     = azapi_resource.this.retry.interval_seconds == 5
     error_message = "Consumer-supplied retry config MUST be applied to the primary AzAPI resource (TFFR7)."
   }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "invalid_sku_rejected" {
@@ -600,6 +719,10 @@ run "invalid_sku_rejected" {
   }
 
   expect_failures = [var.sku]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "invalid_lock_kind_rejected" {
@@ -612,6 +735,10 @@ run "invalid_lock_kind_rejected" {
   }
 
   expect_failures = [var.lock]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "invalid_name_rejected" {
@@ -622,6 +749,10 @@ run "invalid_name_rejected" {
   }
 
   expect_failures = [var.name]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "invalid_partition_count_rejected" {
@@ -632,6 +763,10 @@ run "invalid_partition_count_rejected" {
   }
 
   expect_failures = [var.partition_count]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }
 
 run "invalid_diagnostic_settings_no_destination" {
@@ -644,4 +779,8 @@ run "invalid_diagnostic_settings_no_destination" {
   }
 
   expect_failures = [var.diagnostic_settings]
+  providers = {
+    azapi  = azapi
+    random = random
+  }
 }

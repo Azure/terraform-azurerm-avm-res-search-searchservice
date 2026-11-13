@@ -18,7 +18,7 @@ module "private_endpoint" {
       name                                    = pe_v.name
       parent_id                               = local.private_endpoint_parent_ids[pe_k]
       subnet_resource_id                      = pe_v.subnet_resource_id
-      subresource_name                        = "searchService"
+      subresource_name                        = coalesce(pe_v.subresource_name, "searchService")
       network_interface_name                  = pe_v.network_interface_name
       private_service_connection_name         = pe_v.private_service_connection_name
       ip_configurations                       = pe_v.ip_configurations
@@ -30,6 +30,7 @@ module "private_endpoint" {
       role_assignments = {
         for ra_k, ra_v in pe_v.role_assignments :
         ra_k => {
+          name                                   = ra_v.name
           role_definition_resource_id            = local.role_definition_resource_ids["${pe_k}-${ra_k}"]
           principal_id                           = ra_v.principal_id
           description                            = ra_v.description
@@ -42,6 +43,7 @@ module "private_endpoint" {
       }
     }
   }
+  manage_dns_zone_group = var.private_endpoints_manage_dns_zone_group
   resource_types = {
     network_private_endpoints                         = var.resource_types.network_private_endpoints
     network_private_endpoints_private_dns_zone_groups = var.resource_types.network_private_endpoints_private_dns_zone_groups

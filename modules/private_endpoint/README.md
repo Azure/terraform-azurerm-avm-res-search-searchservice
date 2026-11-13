@@ -11,7 +11,7 @@ The following requirements are needed by this module:
 
 - <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) (>= 1.9, < 2.0)
 
-- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.8)
+- <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) (~> 2.12)
 
 - <a name="requirement_random"></a> [random](#requirement\_random) (~> 3.5)
 
@@ -70,6 +70,7 @@ map(object({
     ip_configurations = optional(map(object({
       name               = string
       private_ip_address = string
+      member_name        = optional(string)
     })), {})
     network_interface_name          = optional(string, null)
     private_dns_zone_group_name     = optional(string, "default")
@@ -77,10 +78,12 @@ map(object({
     private_service_connection_name = optional(string, null)
     tags                            = optional(map(string), null)
     lock = optional(object({
-      kind = string
-      name = optional(string, null)
+      kind  = string
+      name  = optional(string, null)
+      notes = optional(string, null)
     }), null)
     role_assignments = optional(map(object({
+      name                                   = optional(string, null)
       role_definition_resource_id            = string
       principal_id                           = string
       description                            = optional(string, null)
@@ -94,6 +97,14 @@ map(object({
 ```
 
 Default: `{}`
+
+### <a name="input_manage_dns_zone_group"></a> [manage\_dns\_zone\_group](#input\_manage\_dns\_zone\_group)
+
+Description: (Optional) Whether to create the private DNS zone group for each endpoint. Set to false when DNS zone groups are managed externally, e.g. using Azure Policy.
+
+Type: `bool`
+
+Default: `true`
 
 ### <a name="input_resource_types"></a> [resource\_types](#input\_resource\_types)
 
@@ -175,5 +186,8 @@ Description: Map of per-private-endpoint role assignment resource IDs, keyed by 
 
 No modules.
 
-<!-- markdownlint-disable MD041 -->
+<!-- markdownlint-disable-next-line MD041 -->
+## Data Collection
+
+The software may collect information about you and your use of the software and send it to Microsoft. Microsoft may use this information to provide services and improve our products and services. You may turn off the telemetry as described in the repository. There are also some features in the software that may enable you and Microsoft to collect data from users of your applications. If you use these features, you must comply with applicable law, including providing appropriate notices to users of your applications together with a copy of Microsoft’s privacy statement. Our privacy statement is located at <https://go.microsoft.com/fwlink/?LinkID=824704>. You can learn more about data collection and use in the help documentation and our privacy statement. Your use of the software operates as your consent to these practices.
 <!-- END_TF_DOCS -->
